@@ -102,6 +102,8 @@
     padding: 8px 0;
     flex-shrink: 0;
     position: relative;
+    display: flex;
+    flex-direction: column;
   }
   .sidebar-resize-handle {
     width: 5px;
@@ -115,6 +117,19 @@
   .sidebar-resize-handle:hover, .sidebar-resize-handle.dragging {
     background: var(--accent);
   }
+  .sidebar-brand {
+    padding: 12px 14px 8px;
+    font-size: 10px;
+    color: var(--text-dim);
+    opacity: 0.5;
+    line-height: 1.6;
+    margin-top: auto;
+  }
+  .sidebar-brand a {
+    color: var(--text-dim);
+    text-decoration: none;
+  }
+  .sidebar-brand a:hover { color: var(--text); }
   .sidebar-section {
     padding: 6px 14px 4px;
     font-size: 11px;
@@ -673,6 +688,11 @@ function renderSidebar() {
       sb.appendChild(el);
     }
   }
+  // Branding
+  const brand = document.createElement("div");
+  brand.className = "sidebar-brand";
+  brand.innerHTML = `POWERED BY<br><a href="https://github.com/orchardworks/wls" target="_blank">wls</a> / <a href="https://github.com/orchardworks" target="_blank">Orchardworks</a>`;
+  sb.appendChild(brand);
 }
 
 function renderBreadcrumb() {
