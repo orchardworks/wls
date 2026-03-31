@@ -150,6 +150,7 @@
     flex-direction: column;
     min-width: 0;
   }
+  .file-area.hidden { display: none; }
   .col-header {
     display: grid;
     grid-template-columns: 1fr 90px 150px;
@@ -369,6 +370,45 @@
   }
   .preview-folder-item:hover { background: var(--hover); }
 
+  /* Column view */
+  .column-view {
+    flex: 1;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .column-view.hidden { display: none; }
+  .miller-column {
+    width: 220px;
+    min-width: 180px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    padding: 2px 0;
+  }
+  .miller-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .miller-item:hover { background: var(--hover); }
+  .miller-item.selected { background: var(--selected); }
+  .miller-item .file-icon { font-size: 14px; flex-shrink: 0; }
+  .miller-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .miller-item-arrow {
+    color: var(--text-dim);
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
   /* Context menu */
   .context-menu {
     position: fixed;
@@ -452,6 +492,8 @@
   <button id="btn-forward" title="Forward">→</button>
   <button id="btn-up" title="Parent directory">↑</button>
   <div class="breadcrumb" id="breadcrumb"></div>
+  <button class="toggle-btn" id="btn-view-list" title="List view">☰</button>
+  <button class="toggle-btn" id="btn-view-cols" title="Column view">▥</button>
   <button class="toggle-btn" id="btn-hidden" title="Show hidden files">.*</button>
   <input type="text" class="search-box" id="search" placeholder="Filter…">
 </div>
@@ -459,7 +501,7 @@
 <div class="main">
   <div class="sidebar" id="sidebar"><div class="sidebar-resize-handle" id="sidebar-resize"></div></div>
   <div class="file-area-wrapper">
-    <div class="file-area">
+    <div class="file-area" id="list-view">
       <div class="col-header">
         <span data-sort="name">Name</span>
         <span data-sort="size">Size</span>
@@ -467,6 +509,7 @@
       </div>
       <div class="file-list" id="file-list"></div>
     </div>
+    <div class="column-view hidden" id="column-view"></div>
     <div class="preview-pane hidden" id="preview-pane">
       <div class="preview-resize-handle" id="preview-resize"></div>
     </div>
@@ -489,6 +532,7 @@ let entries = [];
 let history = [];
 let historyIdx = -1;
 let showHidden = false;
+let viewMode = localStorage.getItem("wls-view-mode") || "list"; // "list" or "columns"
 let sortKey = "name";
 let sortAsc = true;
 let filterText = "";
@@ -1016,6 +1060,81 @@ function renderFiles() {
   $("#statusbar").textContent = status;
 }
 
+// Column view (Miller columns)
+let columnData = []; // [{dir, entries, selected}]
+
+async function renderColumnView() {
+  const container = $("#column-view");
+  container.innerHTML = "";
+
+  // Init first column from current directory entries
+  if (columnData.length === 0) {
+    columnData = [{ dir: currentDir, entries: entries, selected: null }];
+  }
+
+  for (let ci = 0; ci < columnData.length; ci++) {
+    const col = columnData[ci];
+    const colEl = document.createElement("div");
+    colEl.className = "miller-column";
+    const filtered = sortEntries(filterEntries(col.entries));
+
+    for (const entry of filtered) {
+      const item = document.createElement("div");
+      item.className = "miller-item" + (col.selected === entry.path ? " selected" : "");
+      item.innerHTML = `
+        <span class="file-icon">${getIcon(entry)}</span>
+        <span class="miller-item-name">${escHtml(entry.name)}</span>
+        ${entry.is_dir ? '<span class="miller-item-arrow">▶</span>' : ""}
+      `;
+      item.onclick = async () => {
+        col.selected = entry.path;
+        // Remove columns after this one
+        columnData = columnData.slice(0, ci + 1);
+        if (entry.is_dir) {
+          try {
+            const res = await fetch("/api/ls?dir=" + encodeURIComponent(entry.path));
+            const data = await res.json();
+            columnData.push({ dir: data.dir, entries: data.entries, selected: null });
+          } catch {}
+        }
+        selectedPaths.clear();
+        selectedPaths.add(entry.path);
+        renderColumnView();
+        renderPreview(entry);
+        // Scroll to show rightmost column
+        container.scrollLeft = container.scrollWidth;
+      };
+      item.ondblclick = () => {
+        if (entry.is_dir) {
+          navigate(entry.path);
+        } else {
+          fetch("/api/open?path=" + encodeURIComponent(entry.path));
+        }
+      };
+      item.oncontextmenu = (e) => showContextMenu(e, entry);
+      colEl.appendChild(item);
+    }
+    container.appendChild(colEl);
+  }
+  // Auto scroll right
+  container.scrollLeft = container.scrollWidth;
+}
+
+function switchView(mode) {
+  viewMode = mode;
+  localStorage.setItem("wls-view-mode", mode);
+  $("#btn-view-list").classList.toggle("active", mode === "list");
+  $("#btn-view-cols").classList.toggle("active", mode === "columns");
+  $("#list-view").classList.toggle("hidden", mode !== "list");
+  $("#column-view").classList.toggle("hidden", mode !== "columns");
+  if (mode === "list") {
+    renderFiles();
+  } else {
+    columnData = [{ dir: currentDir, entries: entries, selected: null }];
+    renderColumnView();
+  }
+}
+
 function escHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -1056,7 +1175,12 @@ async function navigate(dir, pushHistory = true) {
     updateNav();
     renderSidebar();
     renderBreadcrumb();
-    renderFiles();
+    if (viewMode === "columns") {
+      columnData = [{ dir: currentDir, entries: entries, selected: null }];
+      renderColumnView();
+    } else {
+      renderFiles();
+    }
     renderPreview(null);
   } catch (e) {
     console.error(e);
@@ -1077,10 +1201,18 @@ $("#btn-forward").onclick = () => {
 };
 $("#btn-up").onclick = () => { if (parentDir && parentDir !== currentDir) navigate(parentDir); };
 
+$("#btn-view-list").onclick = () => switchView("list");
+$("#btn-view-cols").onclick = () => switchView("columns");
+
+function renderCurrentView() {
+  if (viewMode === "columns") renderColumnView();
+  else renderFiles();
+}
+
 $("#btn-hidden").onclick = () => {
   showHidden = !showHidden;
   $("#btn-hidden").classList.toggle("active", showHidden);
-  renderFiles();
+  renderCurrentView();
 };
 
 $$(".col-header span").forEach(el => {
@@ -1088,11 +1220,11 @@ $$(".col-header span").forEach(el => {
     const key = el.dataset.sort;
     if (sortKey === key) sortAsc = !sortAsc;
     else { sortKey = key; sortAsc = true; }
-    renderFiles();
+    renderCurrentView();
   };
 });
 
-$("#search").oninput = (e) => { filterText = e.target.value; renderFiles(); };
+$("#search").oninput = (e) => { filterText = e.target.value; renderCurrentView(); };
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Backspace" && document.activeElement.tagName !== "INPUT") {
@@ -1275,7 +1407,11 @@ function startRename(entry) {
   });
 }
 
-// Init — URLパスがディレクトリなら直接開く
+// Init
+$("#btn-view-list").classList.toggle("active", viewMode === "list");
+$("#btn-view-cols").classList.toggle("active", viewMode === "columns");
+$("#list-view").classList.toggle("hidden", viewMode !== "list");
+$("#column-view").classList.toggle("hidden", viewMode !== "columns");
 const initPath = decodeURI(window.location.pathname);
 navigate(initPath.length > 1 ? initPath : "~");
 </script>
