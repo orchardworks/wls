@@ -228,6 +228,81 @@
     max-height: 100%;
     object-fit: contain;
   }
+  .preview-pane iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #fff;
+  }
+  .preview-code {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    padding: 12px;
+    font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre;
+    tab-size: 2;
+    text-align: left;
+    color: var(--text);
+  }
+  .preview-code .line-num {
+    display: inline-block;
+    width: 3em;
+    text-align: right;
+    padding-right: 1em;
+    color: var(--text-dim);
+    user-select: none;
+  }
+  .preview-markdown {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    padding: 16px 20px;
+    text-align: left;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .preview-markdown h1, .preview-markdown h2, .preview-markdown h3,
+  .preview-markdown h4, .preview-markdown h5, .preview-markdown h6 {
+    margin: 1em 0 0.5em; color: #fff; font-weight: 600;
+  }
+  .preview-markdown h1 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+  .preview-markdown h2 { font-size: 1.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+  .preview-markdown h3 { font-size: 1.1em; }
+  .preview-markdown p { margin: 0.5em 0; }
+  .preview-markdown code {
+    background: var(--bg); padding: 2px 5px; border-radius: 3px;
+    font-family: "SF Mono", "Menlo", monospace; font-size: 0.9em;
+  }
+  .preview-markdown pre {
+    background: var(--bg); padding: 10px 12px; border-radius: 5px;
+    overflow-x: auto; margin: 0.5em 0;
+  }
+  .preview-markdown pre code { background: none; padding: 0; }
+  .preview-markdown blockquote {
+    border-left: 3px solid var(--accent); padding-left: 12px;
+    color: var(--text-dim); margin: 0.5em 0;
+  }
+  .preview-markdown ul, .preview-markdown ol { padding-left: 1.5em; margin: 0.5em 0; }
+  .preview-markdown li { margin: 0.2em 0; }
+  .preview-markdown a { color: var(--accent); text-decoration: none; }
+  .preview-markdown a:hover { text-decoration: underline; }
+  .preview-markdown img { max-width: 100%; }
+  .preview-markdown table { border-collapse: collapse; margin: 0.5em 0; }
+  .preview-markdown th, .preview-markdown td {
+    border: 1px solid var(--border); padding: 4px 8px; font-size: 12px;
+  }
+  .preview-markdown th { background: var(--toolbar-bg); }
+  .preview-markdown hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+  /* Syntax highlighting */
+  .syn-kw { color: #c586c0; }
+  .syn-str { color: #ce9178; }
+  .syn-num { color: #b5cea8; }
+  .syn-cmt { color: #6a9955; }
+  .syn-key { color: #9cdcfe; }
+  .syn-bool { color: #569cd6; }
   .preview-info {
     padding: 20px;
     text-align: center;
@@ -441,8 +516,111 @@ function renderBreadcrumb() {
 // Preview
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".tiff", ".heic"]);
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"]);
+const MD_EXTS = new Set([".md", ".markdown", ".mkd"]);
+const CODE_EXTS = new Set([
+  ".js", ".ts", ".jsx", ".tsx", ".py", ".rb", ".go", ".rs", ".java",
+  ".c", ".cpp", ".h", ".hpp", ".cs", ".swift", ".kt",
+  ".sh", ".bash", ".zsh", ".fish",
+  ".css", ".scss", ".less",
+  ".yaml", ".yml", ".toml", ".ini", ".conf",
+  ".xml", ".csv", ".sql", ".graphql",
+  ".env", ".gitignore", ".dockerfile",
+  ".txt", ".log",
+]);
 
-function renderPreview(entry) {
+// Minimal markdown → HTML renderer
+function renderMarkdown(src) {
+  let html = src;
+  // Code blocks (``` ... ```)
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre><code>${escHtml(code.trimEnd())}</code></pre>`);
+  // Tables
+  html = html.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)*)/gm, (_, hdr, sep, body) => {
+    const heads = hdr.split("|").filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join("");
+    const rows = body.trim().split("\n").map(r =>
+      "<tr>" + r.split("|").filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join("") + "</tr>"
+    ).join("");
+    return `<table><tr>${heads}</tr>${rows}</table>`;
+  });
+  // Headings
+  html = html.replace(/^######\s+(.+)$/gm, "<h6>$1</h6>");
+  html = html.replace(/^#####\s+(.+)$/gm, "<h5>$1</h5>");
+  html = html.replace(/^####\s+(.+)$/gm, "<h4>$1</h4>");
+  html = html.replace(/^###\s+(.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^##\s+(.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^#\s+(.+)$/gm, "<h1>$1</h1>");
+  // HR
+  html = html.replace(/^---+$/gm, "<hr>");
+  // Blockquote
+  html = html.replace(/^>\s+(.+)$/gm, "<blockquote>$1</blockquote>");
+  // Bold & italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  // Images
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2">');
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  // Unordered lists
+  html = html.replace(/(^[-*]\s+.+\n?)+/gm, (block) => {
+    const items = block.trim().split("\n").map(l => `<li>${l.replace(/^[-*]\s+/, "")}</li>`).join("");
+    return `<ul>${items}</ul>`;
+  });
+  // Ordered lists
+  html = html.replace(/(^\d+\.\s+.+\n?)+/gm, (block) => {
+    const items = block.trim().split("\n").map(l => `<li>${l.replace(/^\d+\.\s+/, "")}</li>`).join("");
+    return `<ol>${items}</ol>`;
+  });
+  // Paragraphs (double newline)
+  html = html.replace(/\n\n+/g, "\n</p><p>\n");
+  html = "<p>" + html + "</p>";
+  // Clean up empty paragraphs around block elements
+  html = html.replace(/<p>\s*(<(h[1-6]|pre|blockquote|ul|ol|table|hr)[^>]*>)/g, "$1");
+  html = html.replace(/(<\/(h[1-6]|pre|blockquote|ul|ol|table)>|<hr>)\s*<\/p>/g, "$1");
+  html = html.replace(/<p>\s*<\/p>/g, "");
+  return html;
+}
+
+// Syntax highlighting for JSON
+function highlightJson(text) {
+  try {
+    const formatted = JSON.stringify(JSON.parse(text), null, 2);
+    return escHtml(formatted)
+      .replace(/"([^"]+)"(?=\s*:)/g, '"<span class="syn-key">$1</span>"')
+      .replace(/:\s*"([^"]*)"(?=[,\n\]}])/g, ': "<span class="syn-str">$1</span>"')
+      .replace(/:\s*(\d+\.?\d*)(?=[,\n\]}])/g, ': <span class="syn-num">$1</span>')
+      .replace(/:\s*(true|false|null)(?=[,\n\]}])/g, ': <span class="syn-bool">$1</span>');
+  } catch {
+    return escHtml(text);
+  }
+}
+
+// Basic syntax highlighting for code
+function highlightCode(text, ext) {
+  let h = escHtml(text);
+  // Comments (// and #)
+  h = h.replace(/(\/\/.*$|#.*$)/gm, '<span class="syn-cmt">$1</span>');
+  // Strings
+  h = h.replace(/(["'])(?:(?!\1|\\).|\\.)*\1/g, '<span class="syn-str">$&</span>');
+  // Numbers
+  h = h.replace(/\b(\d+\.?\d*)\b/g, '<span class="syn-num">$1</span>');
+  // Keywords
+  const kw = "\\b(function|const|let|var|return|if|else|for|while|class|import|from|export|def|async|await|try|catch|finally|throw|new|this|self|yield|in|of|switch|case|break|continue|with|as|raise|except|pass|lambda|struct|enum|impl|fn|pub|use|mod|match|type|interface|extends|implements)\\b";
+  h = h.replace(new RegExp(kw, "g"), '<span class="syn-kw">$1</span>');
+  // true/false/null/None
+  h = h.replace(/\b(true|false|null|None|nil|undefined)\b/g, '<span class="syn-bool">$1</span>');
+  return h;
+}
+
+function addLineNumbers(highlighted) {
+  return highlighted.split("\n").map((line, i) =>
+    `<span class="line-num">${i + 1}</span>${line}`
+  ).join("\n");
+}
+
+async function renderPreview(entry) {
   const pane = $("#preview-pane");
   if (!entry) {
     pane.classList.add("hidden");
@@ -452,21 +630,47 @@ function renderPreview(entry) {
   const ext = entry.ext;
   const fileUrl = encodeURI(entry.path);
 
-  if (!entry.is_dir && IMAGE_EXTS.has(ext)) {
+  if (entry.is_dir) {
+    pane.innerHTML = `
+      <div class="preview-info">
+        <div class="preview-icon">${getIcon(entry)}</div>
+        <div class="preview-name">${escHtml(entry.name)}</div>
+        <div class="preview-meta">Folder<br>Modified: ${formatDate(entry.modified)}</div>
+      </div>`;
+  } else if (IMAGE_EXTS.has(ext)) {
     pane.innerHTML = `<img src="${fileUrl}" alt="${escHtml(entry.name)}">`;
-  } else if (!entry.is_dir && VIDEO_EXTS.has(ext)) {
+  } else if (VIDEO_EXTS.has(ext)) {
     pane.innerHTML = `<video src="${fileUrl}" controls autoplay muted></video>`;
+  } else if (ext === ".html" || ext === ".htm") {
+    pane.innerHTML = `<iframe src="${fileUrl}" sandbox="allow-same-origin"></iframe>`;
+  } else if (MD_EXTS.has(ext)) {
+    try {
+      const res = await fetch(fileUrl);
+      const text = await res.text();
+      pane.innerHTML = `<div class="preview-markdown">${renderMarkdown(text)}</div>`;
+    } catch { pane.innerHTML = `<div class="preview-info">Failed to load</div>`; }
+  } else if (ext === ".json") {
+    try {
+      const res = await fetch(fileUrl);
+      const text = await res.text();
+      pane.innerHTML = `<div class="preview-code">${addLineNumbers(highlightJson(text))}</div>`;
+    } catch { pane.innerHTML = `<div class="preview-info">Failed to load</div>`; }
+  } else if (CODE_EXTS.has(ext)) {
+    try {
+      const res = await fetch(fileUrl);
+      const text = await res.text();
+      pane.innerHTML = `<div class="preview-code">${addLineNumbers(highlightCode(text, ext))}</div>`;
+    } catch { pane.innerHTML = `<div class="preview-info">Failed to load</div>`; }
   } else {
     pane.innerHTML = `
       <div class="preview-info">
         <div class="preview-icon">${getIcon(entry)}</div>
         <div class="preview-name">${escHtml(entry.name)}</div>
         <div class="preview-meta">
-          ${entry.is_dir ? "Folder" : formatSize(entry.size)}<br>
+          ${formatSize(entry.size)}<br>
           Modified: ${formatDate(entry.modified)}
         </div>
-      </div>
-    `;
+      </div>`;
   }
 }
 
