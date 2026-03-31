@@ -76,6 +76,8 @@ class FinderHandler(SimpleHTTPRequestHandler):
             self.trash_item(body.get("path", ""))
         elif parsed.path == "/api/rename":
             self.rename_item(body.get("path", ""), body.get("name", ""))
+        elif parsed.path == "/api/move":
+            self.move_item(body.get("paths", []), body.get("dest", ""))
         else:
             self.send_error(404)
 
@@ -112,6 +114,30 @@ class FinderHandler(SimpleHTTPRequestHandler):
         try:
             os.rename(filepath, new_path)
             self._json_response({"ok": True, "path": new_path})
+        except Exception as e:
+            self.send_error(500, str(e))
+
+    def move_item(self, paths, dest):
+        """Move files/folders into a destination directory."""
+        import shutil
+        dest = os.path.abspath(dest)
+        if not os.path.isdir(dest):
+            self.send_error(400, "Destination is not a directory")
+            return
+        try:
+            for p in paths:
+                p = os.path.abspath(p)
+                if not os.path.exists(p):
+                    continue
+                target = os.path.join(dest, os.path.basename(p))
+                if os.path.exists(target):
+                    # Skip if same location
+                    if os.path.abspath(target) == os.path.abspath(p):
+                        continue
+                    self.send_error(409, f"Already exists: {os.path.basename(p)}")
+                    return
+                shutil.move(p, target)
+            self._json_response({"ok": True})
         except Exception as e:
             self.send_error(500, str(e))
 

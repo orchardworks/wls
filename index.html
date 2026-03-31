@@ -180,6 +180,9 @@
   }
   .file-row:hover { background: var(--hover); }
   .file-row.selected { background: var(--selected); }
+  .file-row.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(0,120,212,0.15); }
+  .file-row.dragging { opacity: 0.4; }
+  .sidebar-item.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(0,120,212,0.15); }
   .file-row.hidden-file { opacity: 0.5; }
   .file-name {
     display: flex;
@@ -584,11 +587,31 @@ function renderSidebar() {
   const handle = $("#sidebar-resize");
   sb.innerHTML = `<div class="sidebar-section">Favorites</div>`;
   sb.appendChild(handle);
+  function makeSidebarDropTarget(el, destPath) {
+    el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; el.classList.add("drop-target"); };
+    el.ondragleave = () => el.classList.remove("drop-target");
+    el.ondrop = async (e) => {
+      e.preventDefault();
+      el.classList.remove("drop-target");
+      const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
+      if (paths.length === 0) return;
+      try {
+        const res = await fetch("/api/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paths, dest: destPath }),
+        });
+        if (res.ok) navigate(currentDir, false);
+        else alert("Move failed: " + (await res.text()));
+      } catch (err) { alert("Error: " + err.message); }
+    };
+  }
   for (const fav of favorites) {
     const el = document.createElement("div");
     el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === fav.path.replace(/\/$/, "") ? " active" : "");
     el.innerHTML = `<span class="sidebar-icon">${fav.icon}</span>${escHtml(fav.name)}`;
     el.onclick = () => navigate(fav.path);
+    makeSidebarDropTarget(el, fav.path);
     sb.appendChild(el);
   }
   // Volumes (Locations)
@@ -602,6 +625,7 @@ function renderSidebar() {
       el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === vol.path.replace(/\/$/, "") ? " active" : "");
       el.innerHTML = `<span class="sidebar-icon">💾</span>${escHtml(vol.name)}`;
       el.onclick = () => navigate(vol.path);
+      makeSidebarDropTarget(el, vol.path);
       sb.appendChild(el);
     }
   }
@@ -943,6 +967,44 @@ function renderFiles() {
         fetch("/api/open?path=" + encodeURIComponent(entry.path));
       }
     };
+    // Drag & Drop
+    row.draggable = true;
+    row.ondragstart = (e) => {
+      if (!selectedPaths.has(entry.path)) {
+        selectedPaths.clear();
+        selectedPaths.add(entry.path);
+        renderFiles();
+      }
+      e.dataTransfer.setData("application/json", JSON.stringify([...selectedPaths]));
+      e.dataTransfer.effectAllowed = "move";
+      requestAnimationFrame(() => {
+        document.querySelectorAll(".file-row").forEach(r => {
+          if (selectedPaths.has(r.dataset.path)) r.classList.add("dragging");
+        });
+      });
+    };
+    row.ondragend = () => {
+      document.querySelectorAll(".dragging, .drop-target").forEach(r => r.classList.remove("dragging", "drop-target"));
+    };
+    if (entry.is_dir) {
+      row.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; row.classList.add("drop-target"); };
+      row.ondragleave = () => row.classList.remove("drop-target");
+      row.ondrop = async (e) => {
+        e.preventDefault();
+        row.classList.remove("drop-target");
+        const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
+        if (paths.length === 0 || paths.includes(entry.path)) return;
+        try {
+          const res = await fetch("/api/move", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paths, dest: entry.path }),
+          });
+          if (res.ok) navigate(currentDir, false);
+          else alert("Move failed: " + (await res.text()));
+        } catch (err) { alert("Error: " + err.message); }
+      };
+    }
     container.appendChild(row);
   }
 
