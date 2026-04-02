@@ -1410,8 +1410,8 @@ $("#search").oninput = (e) => { filterText = e.target.value; renderCurrentView()
 
 document.addEventListener("keydown", (e) => {
   if (document.activeElement.tagName === "INPUT") return;
-  // Cmd+T: add selected to tray
-  if ((e.metaKey || e.ctrlKey) && e.key === "t") {
+  // T: add selected to tray
+  if (e.key === "t" || e.key === "T") {
     e.preventDefault();
     const selected = entries.filter(en => selectedPaths.has(en.path));
     if (selected.length > 0) addToTray(selected);
@@ -1865,6 +1865,24 @@ function showTrayDropDialog(paths, destPath) {
     });
     // Close on overlay click
     overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(); } };
+  });
+}
+
+// Drop from tray onto main file list → move/copy to current directory
+{
+  const fileList = $("#file-list");
+  fileList.addEventListener("dragover", (e) => {
+    if (e.dataTransfer.types.includes("text/x-wls-source")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    }
+  });
+  fileList.addEventListener("drop", async (e) => {
+    if (e.dataTransfer.getData("text/x-wls-source") !== "tray") return;
+    e.preventDefault();
+    const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
+    if (paths.length === 0) return;
+    await showTrayDropDialog(paths, currentDir);
   });
 }
 
