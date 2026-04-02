@@ -1719,7 +1719,7 @@ function renderTray() {
   clearBtn.classList.remove("hidden");
   const savedH = localStorage.getItem("wls-tray-height");
   if (savedH) panel.style.height = savedH + "px";
-  else if (!panel.style.height || panel.style.height === "") panel.style.height = "150px";
+  else if (!panel.style.height || panel.style.height === "") panel.style.height = "170px";
 
   title.textContent = `Tray (${trayItems.length})`;
   container.innerHTML = "";
