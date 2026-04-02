@@ -169,6 +169,9 @@ class FinderHandler(SimpleHTTPRequestHandler):
             params = urllib.parse.parse_qs(parsed.query)
             filepath = params.get("path", [""])[0]
             self.open_file(filepath)
+        elif parsed.path == "/icon.png":
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
+            self.serve_file(icon_path)
         else:
             # URL path → file path (e.g., /Users/.../photo.jpg → serve that file)
             filepath = urllib.parse.unquote(parsed.path)

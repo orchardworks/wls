@@ -121,9 +121,16 @@
     padding: 12px 14px 8px;
     font-size: 10px;
     color: var(--text-dim);
-    opacity: 0.5;
     line-height: 1.6;
     margin-top: auto;
+    text-align: center;
+  }
+  .sidebar-brand img {
+    display: block;
+    margin: 0 auto 4px;
+  }
+  .sidebar-brand span {
+    opacity: 0.7;
   }
   .sidebar-brand a {
     color: var(--text-dim);
@@ -691,7 +698,7 @@ function renderSidebar() {
   // Branding
   const brand = document.createElement("div");
   brand.className = "sidebar-brand";
-  brand.innerHTML = `POWERED BY<br><a href="https://github.com/orchardworks/wls" target="_blank">wls</a> / <a href="https://github.com/orchardworks" target="_blank">Orchardworks</a>`;
+  brand.innerHTML = `<a href="https://orchardworks.dev" target="_blank"><img src="/icon.png" alt="Orchardworks" width="28" height="28"></a><br><span>POWERED BY<br><a href="https://github.com/orchardworks/wls" target="_blank">wls</a> / <a href="https://github.com/orchardworks" target="_blank">Orchardworks</a></span>`;
   sb.appendChild(brand);
 }
 
