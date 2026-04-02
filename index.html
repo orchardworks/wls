@@ -157,6 +157,34 @@
   .sidebar-item.active { background: var(--selected); }
   .sidebar-icon { font-size: 15px; width: 20px; text-align: center; }
 
+  /* Sidebar preview (fallback when right preview pane is hidden) */
+  .sidebar-preview {
+    border-top: 1px solid var(--border);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .sidebar-preview:empty { display: none; }
+  .sidebar-preview img, .sidebar-preview video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .sidebar-preview .preview-info { padding: 12px 10px; text-align: center; font-size: 12px; }
+  .sidebar-preview .preview-icon { font-size: 40px; margin-bottom: 6px; }
+  .sidebar-preview .preview-name { font-weight: 600; word-break: break-all; }
+  .sidebar-preview .preview-meta { color: var(--text-dim); font-size: 11px; margin-top: 4px; }
+
+  /* Content area (right of sidebar: file area + tray) */
+  .content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
   /* File area wrapper */
   .file-area-wrapper {
     flex: 1;
@@ -491,14 +519,13 @@
   }
   .tray-panel {
     flex-shrink: 0;
-    min-height: 60px;
     background: var(--sidebar-bg);
     border-top: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
-  .tray-panel.hidden, .tray-resize-handle.hidden { display: none; }
+  .tray-header button.hidden { display: none; }
   .tray-header {
     display: flex;
     align-items: center;
@@ -547,9 +574,8 @@
   .tray-item.selected .tray-path { color: rgba(255,255,255,0.7); }
   .tray-empty {
     color: var(--text-dim);
-    font-size: 12px;
-    text-align: center;
-    padding: 16px;
+    font-size: 11px;
+    padding: 6px 10px;
   }
   .tray-drop-active { background: rgba(0,122,255,0.1); }
 
@@ -647,29 +673,32 @@
 
 <div class="main">
   <div class="sidebar" id="sidebar"><div class="sidebar-resize-handle" id="sidebar-resize"></div></div>
-  <div class="file-area-wrapper">
-    <div class="file-area" id="list-view">
-      <div class="col-header">
-        <span data-sort="name">Name</span>
-        <span data-sort="size">Size</span>
-        <span data-sort="modified">Modified</span>
+  <div class="content-area">
+    <div class="file-area-wrapper">
+      <div class="file-area" id="list-view">
+        <div class="col-header">
+          <span data-sort="name">Name</span>
+          <span data-sort="size">Size</span>
+          <span data-sort="modified">Modified</span>
+        </div>
+        <div class="file-list" id="file-list"></div>
       </div>
-      <div class="file-list" id="file-list"></div>
+      <div class="column-view hidden" id="column-view"></div>
+      <div class="preview-pane hidden" id="preview-pane">
+        <div class="preview-resize-handle" id="preview-resize"></div>
+      </div>
     </div>
-    <div class="column-view hidden" id="column-view"></div>
-    <div class="preview-pane hidden" id="preview-pane">
-      <div class="preview-resize-handle" id="preview-resize"></div>
+    <div class="tray-resize-handle" id="tray-resize"></div>
+    <div class="tray-panel" id="tray-panel">
+      <div class="tray-header">
+        <span id="tray-title">Tray</span>
+        <button id="tray-clear" class="hidden">Clear</button>
+      </div>
+      <div class="tray-items" id="tray-items">
+        <div class="tray-empty">Stage files here from any folder, then drag them to move or copy across directories.</div>
+      </div>
     </div>
   </div>
-</div>
-
-<div class="tray-resize-handle hidden" id="tray-resize"></div>
-<div class="tray-panel hidden" id="tray-panel">
-  <div class="tray-header">
-    <span id="tray-title">Tray (0)</span>
-    <button id="tray-clear">Clear</button>
-  </div>
-  <div class="tray-items" id="tray-items"></div>
 </div>
 
 <div class="statusbar" id="statusbar"></div>
@@ -843,6 +872,12 @@ function renderSidebar() {
       sb.appendChild(el);
     }
   }
+  // Sidebar preview (fallback when right preview pane is hidden)
+  const sbPreview = document.createElement("div");
+  sbPreview.className = "sidebar-preview";
+  sbPreview.id = "sidebar-preview";
+  sb.appendChild(sbPreview);
+
   // Branding
   const brand = document.createElement("div");
   brand.className = "sidebar-brand";
@@ -996,12 +1031,38 @@ function setPreviewContent(html) {
   while (content.firstChild) pane.appendChild(content.firstChild);
 }
 
+function renderSidebarPreview(entry) {
+  const sbp = document.getElementById("sidebar-preview");
+  if (!sbp) return;
+  if (!entry) { sbp.innerHTML = ""; return; }
+  const ext = entry.ext;
+  const fileUrl = encodeURI(entry.path);
+  if (IMAGE_EXTS.has(ext)) {
+    sbp.innerHTML = `<img src="${fileUrl}" alt="${escHtml(entry.name)}">`;
+  } else if (VIDEO_EXTS.has(ext)) {
+    sbp.innerHTML = `<video src="${fileUrl}" controls muted style="max-width:100%"></video>`;
+  } else {
+    sbp.innerHTML = `<div class="preview-info">
+      <div class="preview-icon">${getIcon(entry)}</div>
+      <div class="preview-name">${escHtml(entry.name)}</div>
+      <div class="preview-meta">${entry.is_dir ? "Folder" : formatSize(entry.size)}<br>Modified: ${formatDate(entry.modified)}</div>
+    </div>`;
+  }
+}
+
 async function renderPreview(entry) {
   const pane = $("#preview-pane");
+  // Check if right pane is force-hidden by CSS media query
+  pane.classList.remove("hidden"); // temporarily show to test computed style
+  const rightPaneBlocked = window.getComputedStyle(pane).display === "none";
+  if (!entry || rightPaneBlocked) pane.classList.add("hidden");
+  // Sidebar fallback: show preview in sidebar when right pane is blocked
+  renderSidebarPreview(rightPaneBlocked ? entry : null);
   if (!entry) {
     pane.classList.add("hidden");
     return;
   }
+  if (rightPaneBlocked) return; // don't populate right pane if CSS blocks it
   pane.classList.remove("hidden");
   const ext = entry.ext;
   const fileUrl = encodeURI(entry.path);
@@ -1643,22 +1704,22 @@ function clearTray() {
 
 function renderTray() {
   const panel = $("#tray-panel");
-  const handle = $("#tray-resize");
   const title = $("#tray-title");
   const container = $("#tray-items");
+  const clearBtn = $("#tray-clear");
 
   if (trayItems.length === 0) {
-    panel.classList.add("hidden");
-    handle.classList.add("hidden");
+    title.textContent = "Tray";
+    clearBtn.classList.add("hidden");
+    panel.style.height = "";
+    container.innerHTML = '<div class="tray-empty">Stage files here from any folder, then drag them to move or copy across directories.</div>';
     return;
   }
 
-  panel.classList.remove("hidden");
-  handle.classList.remove("hidden");
-
+  clearBtn.classList.remove("hidden");
   const savedH = localStorage.getItem("wls-tray-height");
   if (savedH) panel.style.height = savedH + "px";
-  else panel.style.height = "150px";
+  else if (!panel.style.height || panel.style.height === "") panel.style.height = "150px";
 
   title.textContent = `Tray (${trayItems.length})`;
   container.innerHTML = "";
@@ -1751,33 +1812,6 @@ for (const el of [trayPanel, trayItemsEl]) {
     addToTray(toAdd);
   });
 }
-
-// Also allow drop on hidden tray area (show a hint)
-// When tray is empty, show it temporarily as a drop zone
-document.addEventListener("dragover", (e) => {
-  if (trayItems.length === 0 && e.dataTransfer.types.includes("application/json")) {
-    const panel = $("#tray-panel");
-    const rect = $("#statusbar").getBoundingClientRect();
-    if (e.clientY > rect.top - 40) {
-      panel.classList.remove("hidden");
-      panel.style.height = "60px";
-      panel.innerHTML = '<div class="tray-empty">Drop here to add to Tray</div>';
-      panel.classList.add("tray-drop-active");
-      $("#tray-resize").classList.remove("hidden");
-    }
-  }
-});
-document.addEventListener("dragend", () => {
-  if (trayItems.length === 0) {
-    const panel = $("#tray-panel");
-    panel.classList.add("hidden");
-    panel.classList.remove("tray-drop-active");
-    panel.innerHTML = '<div class="tray-header"><span id="tray-title">Tray (0)</span><button id="tray-clear">Clear</button></div><div class="tray-items" id="tray-items"></div>';
-    $("#tray-resize").classList.add("hidden");
-    // Re-bind clear button
-    $("#tray-clear").onclick = clearTray;
-  }
-});
 
 // Tray clear button
 $("#tray-clear").onclick = clearTray;
