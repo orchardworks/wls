@@ -270,6 +270,60 @@ class TestCopy:
         assert os.path.exists(os.path.join(dest, ".hidden_dir", "inner.txt"))
 
 
+# --- /api/mkdir ---
+
+class TestMkdir:
+    def test_create_folder(self, test_server, temp_dir):
+        data = json.dumps({"dir": temp_dir, "name": "new_folder"}).encode()
+        req = urllib.request.Request(
+            f"{test_server}/api/mkdir",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        resp = json.loads(urllib.request.urlopen(req).read())
+        assert resp["ok"] is True
+        assert resp["path"] == os.path.join(temp_dir, "new_folder")
+        assert os.path.isdir(os.path.join(temp_dir, "new_folder"))
+
+    def test_create_folder_conflict(self, test_server, temp_dir):
+        """Creating a folder with an existing name should fail with 409."""
+        data = json.dumps({"dir": temp_dir, "name": "subdir"}).encode()
+        req = urllib.request.Request(
+            f"{test_server}/api/mkdir",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)
+        assert exc_info.value.code == 409
+
+    def test_create_folder_invalid_name(self, test_server, temp_dir):
+        data = json.dumps({"dir": temp_dir, "name": "bad/name"}).encode()
+        req = urllib.request.Request(
+            f"{test_server}/api/mkdir",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)
+        assert exc_info.value.code == 400
+
+    def test_create_folder_bad_parent(self, test_server, temp_dir):
+        data = json.dumps({"dir": os.path.join(temp_dir, "nonexistent"), "name": "x"}).encode()
+        req = urllib.request.Request(
+            f"{test_server}/api/mkdir",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)
+        assert exc_info.value.code == 400
+
+
 # --- /api/volumes ---
 
 class TestVolumes:
@@ -281,6 +335,24 @@ class TestVolumes:
         assert len(data) > 0
         assert "name" in data[0]
         assert "path" in data[0]
+
+
+# --- /api/open ---
+
+class TestOpen:
+    def test_open_file(self, test_server, temp_dir):
+        filepath = os.path.join(temp_dir, "Makefile")
+        url = f"{test_server}/api/open?path={urllib.parse.quote(filepath)}"
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read())
+        assert data["ok"] is True
+
+    def test_open_with_reveal(self, test_server, temp_dir):
+        filepath = os.path.join(temp_dir, "Makefile")
+        url = f"{test_server}/api/open?path={urllib.parse.quote(filepath)}&reveal=1"
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read())
+        assert data["ok"] is True
 
 
 # --- /api/file ---

@@ -140,6 +140,8 @@ class FinderHandler(SimpleHTTPRequestHandler):
             self.move_item(body.get("paths", []), body.get("dest", ""))
         elif parsed.path == "/api/copy":
             self.copy_item(body.get("paths", []), body.get("dest", ""))
+        elif parsed.path == "/api/mkdir":
+            self.make_directory(body.get("dir", ""), body.get("name", ""))
         else:
             self.send_error(404)
 
@@ -231,6 +233,25 @@ class FinderHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, str(e))
 
+    def make_directory(self, parent, name):
+        """Create a new directory."""
+        parent = os.path.abspath(parent)
+        if not os.path.isdir(parent):
+            self.send_error(400, "Parent is not a directory")
+            return
+        if not name or "/" in name:
+            self.send_error(400, "Invalid name")
+            return
+        new_path = os.path.join(parent, name)
+        if os.path.exists(new_path):
+            self.send_error(409, "Already exists")
+            return
+        try:
+            os.makedirs(new_path)
+            self._json_response({"ok": True, "path": new_path})
+        except Exception as e:
+            self.send_error(500, str(e))
+
     def _json_response(self, data):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -258,7 +279,8 @@ class FinderHandler(SimpleHTTPRequestHandler):
         elif parsed.path == "/api/open":
             params = urllib.parse.parse_qs(parsed.query)
             filepath = params.get("path", [""])[0]
-            self.open_file(filepath)
+            reveal = params.get("reveal", [""])[0] == "1"
+            self.open_file(filepath, reveal=reveal)
         elif parsed.path == "/api/icon":
             params = urllib.parse.parse_qs(parsed.query)
             filepath = params.get("path", [""])[0]
@@ -415,9 +437,10 @@ class FinderHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, str(e))
 
-    def open_file(self, filepath):
+    def open_file(self, filepath, reveal=False):
         try:
-            subprocess.Popen(["open", filepath])
+            cmd = ["open", "-R", filepath] if reveal else ["open", filepath]
+            subprocess.Popen(cmd)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
