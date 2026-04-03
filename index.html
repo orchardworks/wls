@@ -715,6 +715,7 @@
   <div class="context-menu-item" data-action="open">Open</div>
   <div class="context-menu-item" data-action="open-in-finder">Open in Finder</div>
   <div class="context-menu-item" data-action="add-to-tray">Add to Tray</div>
+  <div class="context-menu-item" data-action="copy-path">Copy Path</div>
   <div class="context-menu-item" data-action="rename">Rename</div>
   <div class="context-menu-sep"></div>
   <div class="context-menu-item danger" data-action="trash">Move to Trash</div>
@@ -723,8 +724,13 @@
   <div class="context-menu-item" data-action="tray-open">Open</div>
   <div class="context-menu-item" data-action="tray-open-in-finder">Open in Finder</div>
   <div class="context-menu-item" data-action="tray-goto">Go to Original Location</div>
+  <div class="context-menu-item" data-action="tray-copy-path">Copy Path</div>
   <div class="context-menu-sep"></div>
   <div class="context-menu-item" data-action="tray-remove">Remove from Tray</div>
+</div>
+<div class="context-menu hidden" id="sidebar-context-menu">
+  <div class="context-menu-item" data-action="sidebar-open-in-finder">Open in Finder</div>
+  <div class="context-menu-item" data-action="sidebar-copy-path">Copy Path</div>
 </div>
 
 <script>
@@ -839,6 +845,16 @@ function renderSidebar() {
   const handle = $("#sidebar-resize");
   sb.innerHTML = `<div class="sidebar-section">Favorites</div>`;
   sb.appendChild(handle);
+  function makeSidebarContextMenu(el, destPath) {
+    el.oncontextmenu = (e) => {
+      e.preventDefault();
+      const menu = $("#sidebar-context-menu");
+      menu.classList.remove("hidden");
+      menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + "px";
+      menu.style.top = Math.min(e.clientY, window.innerHeight - 80) + "px";
+      menu.dataset.path = destPath;
+    };
+  }
   function makeSidebarDropTarget(el, destPath) {
     el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; el.classList.add("drop-target"); };
     el.ondragleave = () => el.classList.remove("drop-target");
@@ -869,6 +885,7 @@ function renderSidebar() {
     el.innerHTML = `<span class="sidebar-icon">${fav.icon}</span>${escHtml(fav.name)}`;
     el.onclick = () => navigate(fav.path);
     makeSidebarDropTarget(el, fav.path);
+    makeSidebarContextMenu(el, fav.path);
     sb.appendChild(el);
   }
   // Volumes (Locations)
@@ -883,6 +900,7 @@ function renderSidebar() {
       el.innerHTML = `<span class="sidebar-icon">💾</span>${escHtml(vol.name)}`;
       el.onclick = () => navigate(vol.path);
       makeSidebarDropTarget(el, vol.path);
+      makeSidebarContextMenu(el, vol.path);
       sb.appendChild(el);
     }
   }
@@ -1560,6 +1578,9 @@ ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
       }
     } else if (action === "open-in-finder") {
       fetch("/api/open?path=" + encodeURIComponent(entry.path));
+    } else if (action === "copy-path") {
+      const paths = [...selectedPaths];
+      navigator.clipboard.writeText(paths.length === 1 ? paths[0] : paths.join("\n"));
     } else if (action === "add-to-tray") {
       const selected = entries.filter(e => selectedPaths.has(e.path));
       if (selected.length > 0) addToTray(selected);
@@ -1828,12 +1849,32 @@ trayCtxMenu.querySelectorAll(".context-menu-item").forEach(el => {
         selectedPaths.add(item.path);
         renderFiles();
       }, 200);
+    } else if (action === "tray-copy-path") {
+      const paths = [...traySelectedPaths];
+      navigator.clipboard.writeText(paths.length === 1 ? paths[0] : paths.join("\n"));
     } else if (action === "tray-remove") {
       removeFromTray([...traySelectedPaths]);
     }
   };
 });
 document.addEventListener("click", () => trayCtxMenu.classList.add("hidden"));
+
+// Sidebar context menu
+const sidebarCtxMenu = $("#sidebar-context-menu");
+sidebarCtxMenu.querySelectorAll(".context-menu-item").forEach(el => {
+  el.onclick = () => {
+    const action = el.dataset.action;
+    const path = sidebarCtxMenu.dataset.path;
+    sidebarCtxMenu.classList.add("hidden");
+    if (!path) return;
+    if (action === "sidebar-open-in-finder") {
+      fetch("/api/open?path=" + encodeURIComponent(path));
+    } else if (action === "sidebar-copy-path") {
+      navigator.clipboard.writeText(path);
+    }
+  };
+});
+document.addEventListener("click", () => sidebarCtxMenu.classList.add("hidden"));
 
 // Tray panel as drop target (add items from main view)
 const trayPanel = $("#tray-panel");
