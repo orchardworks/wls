@@ -1507,7 +1507,12 @@ document.addEventListener("keydown", (e) => {
   // T: add selected to tray
   if (e.key === "t" || e.key === "T") {
     e.preventDefault();
-    const selected = entries.filter(en => selectedPaths.has(en.path));
+    let selected = entries.filter(en => selectedPaths.has(en.path));
+    if (selected.length === 0) {
+      for (const col of columnData) {
+        selected = selected.concat(col.entries.filter(en => selectedPaths.has(en.path)));
+      }
+    }
     if (selected.length > 0) addToTray(selected);
     return;
   }
@@ -1583,7 +1588,14 @@ ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
       const paths = [...selectedPaths];
       navigator.clipboard.writeText(paths.length === 1 ? paths[0] : paths.join("\n"));
     } else if (action === "add-to-tray") {
-      const selected = entries.filter(e => selectedPaths.has(e.path));
+      // Check entries first, then columnData for column view items
+      let selected = entries.filter(e => selectedPaths.has(e.path));
+      if (selected.length === 0) {
+        for (const col of columnData) {
+          selected = selected.concat(col.entries.filter(e => selectedPaths.has(e.path)));
+        }
+      }
+      if (selected.length === 0 && entry) selected = [entry];
       if (selected.length > 0) addToTray(selected);
     } else if (action === "rename") {
       startRename(entry);
