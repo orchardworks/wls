@@ -720,6 +720,10 @@
   <div class="context-menu-item danger" data-action="trash">Move to Trash</div>
 </div>
 <div class="context-menu hidden" id="tray-context-menu">
+  <div class="context-menu-item" data-action="tray-open">Open</div>
+  <div class="context-menu-item" data-action="tray-open-in-finder">Open in Finder</div>
+  <div class="context-menu-item" data-action="tray-goto">Go to Original Location</div>
+  <div class="context-menu-sep"></div>
   <div class="context-menu-item" data-action="tray-remove">Remove from Tray</div>
 </div>
 
@@ -1793,6 +1797,9 @@ function renderTray() {
       menu.classList.remove("hidden");
       menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + "px";
       menu.style.top = Math.min(e.clientY, window.innerHeight - 80) + "px";
+      // Show "Open in Finder" only for folders
+      menu.querySelector('[data-action="tray-open-in-finder"]').style.display = item.type === "dir" ? "" : "none";
+      menu.dataset.contextItem = JSON.stringify(item);
     };
 
     container.appendChild(el);
@@ -1801,10 +1808,31 @@ function renderTray() {
 
 // Tray context menu
 const trayCtxMenu = $("#tray-context-menu");
-trayCtxMenu.querySelector('[data-action="tray-remove"]').onclick = () => {
-  trayCtxMenu.classList.add("hidden");
-  removeFromTray([...traySelectedPaths]);
-};
+trayCtxMenu.querySelectorAll(".context-menu-item").forEach(el => {
+  el.onclick = () => {
+    const action = el.dataset.action;
+    const item = JSON.parse(trayCtxMenu.dataset.contextItem || "null");
+    trayCtxMenu.classList.add("hidden");
+    if (!item) return;
+    if (action === "tray-open") {
+      if (item.type === "dir") navigate(item.path);
+      else fetch("/api/open?path=" + encodeURIComponent(item.path));
+    } else if (action === "tray-open-in-finder") {
+      fetch("/api/open?path=" + encodeURIComponent(item.path));
+    } else if (action === "tray-goto") {
+      const parentDir = item.path.substring(0, item.path.lastIndexOf("/")) || "/";
+      navigate(parentDir);
+      // Select the item after navigation
+      setTimeout(() => {
+        selectedPaths.clear();
+        selectedPaths.add(item.path);
+        renderFiles();
+      }, 200);
+    } else if (action === "tray-remove") {
+      removeFromTray([...traySelectedPaths]);
+    }
+  };
+});
 document.addEventListener("click", () => trayCtxMenu.classList.add("hidden"));
 
 // Tray panel as drop target (add items from main view)
