@@ -12,7 +12,10 @@ import urllib.parse
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8234
+try:
+    PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8234
+except ValueError:
+    PORT = 8234
 
 # Swift script to read Finder sidebar favorites via LSSharedFileList API
 SWIFT_CODE = r"""
