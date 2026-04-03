@@ -74,6 +74,16 @@
   .breadcrumb span:hover { background: var(--hover); }
   .breadcrumb .sep { color: var(--text-dim); cursor: default; font-size: 11px; }
   .breadcrumb .sep:hover { background: none; }
+  .breadcrumb-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    padding: 0 2px;
+  }
   .search-box {
     width: 160px;
     padding: 4px 8px;
@@ -251,6 +261,8 @@
   }
   .col-header span { cursor: pointer; }
   .col-header span:hover { color: var(--text); }
+  .col-header span.sort-active { color: var(--text); }
+  .col-header span .sort-arrow { font-size: 9px; margin-left: 2px; }
   .file-list {
     flex: 1;
     overflow-y: auto;
@@ -616,6 +628,33 @@
     text-align: center;
   }
 
+  /* Toast notifications */
+  .toast-container {
+    position: fixed;
+    bottom: 40px;
+    right: 16px;
+    z-index: 500;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--toolbar-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    pointer-events: auto;
+    animation: toast-in 0.2s ease-out;
+    max-width: 360px;
+  }
+  .toast.error { border-color: #f44; color: #f88; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes toast-out { from { opacity: 1; } to { opacity: 0; transform: translateY(8px); } }
+
   /* Inline rename input */
   .rename-input {
     background: var(--bg);
@@ -850,12 +889,14 @@
 </div>
 
 <div class="statusbar" id="statusbar"></div>
+<div class="toast-container" id="toast-container"></div>
 <div class="context-menu hidden" id="context-menu">
   <div class="context-menu-item" data-action="open">Open<span class="context-menu-shortcut">O</span></div>
   <div class="context-menu-item" data-action="open-in-finder">Open in Finder<span class="context-menu-shortcut">F</span></div>
   <div class="context-menu-item" data-action="add-to-tray">Add to Tray<span class="context-menu-shortcut">T</span></div>
   <div class="context-menu-item" data-action="copy-path">Copy Path<span class="context-menu-shortcut">⌘+C</span></div>
   <div class="context-menu-item" data-action="rename">Rename<span class="context-menu-shortcut">R</span></div>
+  <div class="context-menu-item" data-action="new-folder">New Folder<span class="context-menu-shortcut">N</span></div>
   <div class="context-menu-sep"></div>
   <div class="context-menu-item danger" data-action="trash">Move to Trash<span class="context-menu-shortcut">⌘+⌫</span></div>
 </div>
@@ -900,6 +941,18 @@ let sidebarSelectedIndex = -1;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
+
+function showToast(message, type = "info", duration = 3000) {
+  const container = $("#toast-container");
+  const toast = document.createElement("div");
+  toast.className = "toast" + (type === "error" ? " error" : "");
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = "toast-out 0.2s ease-in forwards";
+    toast.addEventListener("animationend", () => toast.remove());
+  }, duration);
+}
 
 // Icon mapping
 const BUNDLE_HIDE_EXT = new Set([".app"]);
@@ -1040,8 +1093,8 @@ function renderSidebar() {
           body: JSON.stringify({ paths, dest: destPath }),
         });
         if (res.ok) navigate(currentDir, false);
-        else alert("Move failed: " + (await res.text()));
-      } catch (err) { alert("Error: " + err.message); }
+        else showToast("Move failed: " + (await res.text()), "error");
+      } catch (err) { showToast("Error: " + err.message, "error"); }
     };
   }
   for (const fav of favorites) {
@@ -1109,6 +1162,30 @@ function renderBreadcrumb() {
   }
   bc.scrollLeft = bc.scrollWidth;
 }
+
+// Double-click breadcrumb to enter path edit mode
+$("#breadcrumb").addEventListener("dblclick", (e) => {
+  const bc = $("#breadcrumb");
+  bc.innerHTML = "";
+  const input = document.createElement("input");
+  input.className = "breadcrumb-input";
+  input.value = currentDir;
+  bc.appendChild(input);
+  input.focus();
+  input.select();
+
+  const commit = () => {
+    const val = input.value.trim();
+    renderBreadcrumb();
+    if (val && val !== currentDir) navigate(val);
+  };
+  input.onblur = commit;
+  input.onkeydown = (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); input.blur(); }
+    if (ev.key === "Escape") { ev.preventDefault(); input.value = currentDir; input.blur(); }
+    ev.stopPropagation();
+  };
+});
 
 // Preview
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".tiff", ".heic"]);
@@ -1531,8 +1608,8 @@ function renderFiles() {
             body: JSON.stringify({ paths, dest: entry.path }),
           });
           if (res.ok) navigate(currentDir, false);
-          else alert("Move failed: " + (await res.text()));
-        } catch (err) { alert("Error: " + err.message); }
+          else showToast("Move failed: " + (await res.text()), "error");
+        } catch (err) { showToast("Error: " + err.message, "error"); }
       };
     }
     container.appendChild(row);
@@ -1659,8 +1736,8 @@ async function renderColumnView() {
               body: JSON.stringify({ paths, dest: entry.path }),
             });
             if (res.ok) navigate(currentDir, false);
-            else alert("Move failed: " + (await res.text()));
-          } catch (err) { alert("Error: " + err.message); }
+            else showToast("Move failed: " + (await res.text()), "error");
+          } catch (err) { showToast("Error: " + err.message, "error"); }
         };
       }
       colEl.appendChild(item);
@@ -1780,14 +1857,29 @@ $("#btn-hidden").onclick = () => {
   renderCurrentView();
 };
 
+function updateSortIndicators() {
+  $$(".col-header span").forEach(el => {
+    el.classList.toggle("sort-active", el.dataset.sort === sortKey);
+    const existing = el.querySelector(".sort-arrow");
+    if (existing) existing.remove();
+    if (el.dataset.sort === sortKey) {
+      const arrow = document.createElement("span");
+      arrow.className = "sort-arrow";
+      arrow.textContent = sortAsc ? "▲" : "▼";
+      el.appendChild(arrow);
+    }
+  });
+}
 $$(".col-header span").forEach(el => {
   el.onclick = () => {
     const key = el.dataset.sort;
     if (sortKey === key) sortAsc = !sortAsc;
     else { sortKey = key; sortAsc = true; }
+    updateSortIndicators();
     renderCurrentView();
   };
 });
+updateSortIndicators();
 
 $("#search").oninput = (e) => { filterText = e.target.value; renderCurrentView(); };
 
@@ -1948,6 +2040,7 @@ function toggleCheatSheet() {
       <tr><td colspan="2" style="padding:12px 0 3px;color:var(--text-dim);font-weight:600">Actions</td></tr>
       <tr><td><kbd>T</kbd></td><td>Add to Tray</td></tr>
       <tr><td><kbd>R</kbd></td><td>Rename</td></tr>
+      <tr><td><kbd>N</kbd></td><td>New Folder</td></tr>
       <tr><td><kbd>F</kbd></td><td>Open in Finder</td></tr>
       <tr><td><kbd>⌘</kbd>+<kbd>⌫</kbd></td><td>Move to Trash</td></tr>
       <tr><td><kbd>⌘</kbd>+<kbd>C</kbd></td><td>Copy path</td></tr>
@@ -2209,20 +2302,21 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
-  // F — open in Finder
+  // F — open/reveal in Finder
   if (e.key === "f" || e.key === "F") {
     e.preventDefault();
     const path = getSelectedPath();
     if (path) {
-      // Determine if it's a directory
       let isDir = false;
       const items = getVisibleItems();
       const entry = items.find(en => en.path === path);
       if (entry) isDir = entry.is_dir || entry.type === "dir";
       const tItem = trayItems.find(en => en.path === path);
       if (tItem) isDir = tItem.type === "dir";
-      // Open the item itself in Finder (dirs open as Finder window, files reveal in Finder)
-      fetch("/api/open?path=" + encodeURIComponent(isDir ? path : path.substring(0, path.lastIndexOf("/"))));
+      const url = isDir
+        ? "/api/open?path=" + encodeURIComponent(path)
+        : "/api/open?path=" + encodeURIComponent(path) + "&reveal=1";
+      fetch(url);
     }
     return;
   }
@@ -2239,7 +2333,7 @@ document.addEventListener("keydown", (e) => {
           await fetch("/api/trash", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: p }) });
         }
         navigate(currentDir, false);
-      } catch (err) { alert("Error: " + err.message); }
+      } catch (err) { showToast("Error: " + err.message, "error"); }
     })();
     return;
   }
@@ -2257,6 +2351,13 @@ document.addEventListener("keydown", (e) => {
         })();
       }
     }
+    return;
+  }
+
+  // N — new folder
+  if (e.key === "n" || e.key === "N") {
+    e.preventDefault();
+    if (focusArea === "main") createNewFolder();
     return;
   }
 
@@ -2311,8 +2412,9 @@ function showContextMenu(e, entry) {
   ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 120) + "px";
   // Hide rename if multiple selected
   ctxMenu.querySelector('[data-action="rename"]').style.display = selectedPaths.size > 1 ? "none" : "";
-  // Show "Open in Finder" only for folders
-  ctxMenu.querySelector('[data-action="open-in-finder"]').style.display = entry.is_dir ? "" : "none";
+  // Update label: "Open in Finder" for dirs, "Reveal in Finder" for files
+  const finderItem = ctxMenu.querySelector('[data-action="open-in-finder"]');
+  finderItem.innerHTML = (entry.is_dir ? "Open in Finder" : "Reveal in Finder") + '<span class="context-menu-shortcut">F</span>';
 }
 
 function hideContextMenu() {
@@ -2340,7 +2442,10 @@ ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
         else fetch("/api/open?path=" + encodeURIComponent(entry.path));
       }
     } else if (action === "open-in-finder") {
-      fetch("/api/open?path=" + encodeURIComponent(entry.path));
+      const url = entry.is_dir
+        ? "/api/open?path=" + encodeURIComponent(entry.path)
+        : "/api/open?path=" + encodeURIComponent(entry.path) + "&reveal=1";
+      fetch(url);
     } else if (action === "copy-path") {
       const paths = [...selectedPaths];
       navigator.clipboard.writeText(paths.length === 1 ? paths[0] : paths.join("\n"));
@@ -2356,6 +2461,8 @@ ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
       if (selected.length > 0) addToTray(selected);
     } else if (action === "rename") {
       startRename(entry);
+    } else if (action === "new-folder") {
+      createNewFolder();
     } else if (action === "trash") {
       const paths = [...selectedPaths];
       const msg = paths.length > 1
@@ -2371,10 +2478,43 @@ ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
           });
         }
         navigate(currentDir, false);
-      } catch (e) { alert("Error: " + e.message); }
+      } catch (e) { showToast("Error: " + e.message, "error"); }
     }
   };
 });
+
+async function createNewFolder() {
+  // Find a unique name
+  let baseName = "untitled folder";
+  let name = baseName;
+  let counter = 1;
+  const existingNames = new Set(entries.map(e => e.name.toLowerCase()));
+  while (existingNames.has(name.toLowerCase())) {
+    counter++;
+    name = `${baseName} ${counter}`;
+  }
+
+  try {
+    const res = await fetch("/api/mkdir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dir: currentDir, name }),
+    });
+    if (!res.ok) {
+      showToast("Failed to create folder: " + (await res.text()), "error");
+      return;
+    }
+    const data = await res.json();
+    const newPath = data.path;
+    // Reload directory and select+rename the new folder
+    await navigate(currentDir, false, newPath);
+    // Find the new entry and start rename
+    const newEntry = entries.find(e => e.path === newPath);
+    if (newEntry) {
+      requestAnimationFrame(() => startRename(newEntry));
+    }
+  } catch (e) { showToast("Error: " + e.message, "error"); }
+}
 
 function startRename(entry) {
   let row = document.querySelector(`.file-row[data-path="${CSS.escape(entry.path)}"]`);
@@ -2418,8 +2558,8 @@ function startRename(entry) {
         body: JSON.stringify({ path: entry.path, name: newName }),
       });
       if (res.ok) navigate(currentDir, false);
-      else alert("Failed to rename: " + (await res.text()));
-    } catch (e) { alert("Error: " + e.message); }
+      else showToast("Failed to rename: " + (await res.text()), "error");
+    } catch (e) { showToast("Error: " + e.message, "error"); }
   };
 
   input.onblur = commit;
@@ -2763,12 +2903,12 @@ function showTrayDropDialog(paths, destPath) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ paths, dest: destPath }),
           });
-          if (!res.ok) alert(`${act} failed: ` + (await res.text()));
+          if (!res.ok) showToast(`${act} failed: ` + (await res.text()), "error");
           else {
             if (!remainChecked) removeFromTray(paths);
             navigate(currentDir, false);
           }
-        } catch (err) { alert("Error: " + err.message); }
+        } catch (err) { showToast("Error: " + err.message, "error"); }
         overlay.remove();
         resolve();
       };
