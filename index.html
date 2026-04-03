@@ -713,6 +713,7 @@
 <div class="statusbar" id="statusbar"></div>
 <div class="context-menu hidden" id="context-menu">
   <div class="context-menu-item" data-action="open">Open</div>
+  <div class="context-menu-item" data-action="open-in-finder">Open in Finder</div>
   <div class="context-menu-item" data-action="add-to-tray">Add to Tray</div>
   <div class="context-menu-item" data-action="rename">Rename</div>
   <div class="context-menu-sep"></div>
@@ -1525,6 +1526,8 @@ function showContextMenu(e, entry) {
   ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 120) + "px";
   // Hide rename if multiple selected
   ctxMenu.querySelector('[data-action="rename"]').style.display = selectedPaths.size > 1 ? "none" : "";
+  // Show "Open in Finder" only for folders
+  ctxMenu.querySelector('[data-action="open-in-finder"]').style.display = entry.is_dir ? "" : "none";
 }
 
 function hideContextMenu() {
@@ -1551,6 +1554,8 @@ ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
         if (entry.is_dir) navigate(entry.path);
         else fetch("/api/open?path=" + encodeURIComponent(entry.path));
       }
+    } else if (action === "open-in-finder") {
+      fetch("/api/open?path=" + encodeURIComponent(entry.path));
     } else if (action === "add-to-tray") {
       const selected = entries.filter(e => selectedPaths.has(e.path));
       if (selected.length > 0) addToTray(selected);
