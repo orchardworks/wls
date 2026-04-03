@@ -1692,7 +1692,9 @@ function addToTray(entriesToAdd) {
       trayItems.push({
         path,
         name: e.name || path.split("/").pop(),
-        type: e.is_dir ? "dir" : "file"
+        type: e.is_dir ? "dir" : "file",
+        size: e.size || 0,
+        modified: e.modified || 0,
       });
     }
   }
@@ -1756,6 +1758,11 @@ function renderTray() {
       }
       renderTray();
       renderFiles();
+      // Preview the selected tray item
+      if (traySelectedPaths.size === 1) {
+        const ext = "." + (item.name.split(".").pop() || "").toLowerCase();
+        renderPreview({ path: item.path, name: item.name, is_dir: item.type === "dir", ext, size: item.size || 0, modified: item.modified || 0 });
+      }
     };
 
     // Drag from tray
