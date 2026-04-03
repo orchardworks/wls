@@ -1509,8 +1509,9 @@ function buildFlatTree(list, depth) {
   return rows;
 }
 
-function renderFiles() {
+function renderFiles(preserveScroll = false) {
   const container = $("#file-list");
+  const savedScrollTop = preserveScroll ? container.scrollTop : 0;
   container.innerHTML = "";
   const flatRows = buildFlatTree(entries, 0);
 
@@ -1615,6 +1616,7 @@ function renderFiles() {
     container.appendChild(row);
   }
 
+  if (preserveScroll) container.scrollTop = savedScrollTop;
   updateStatusbar();
   lazyLoadAppIcons();
 }
@@ -1651,8 +1653,15 @@ function updateStatusbar() {
 // Column view (Miller columns)
 let columnData = []; // [{dir, entries, selected}]
 
-async function renderColumnView() {
+async function renderColumnView(preserveScroll = false) {
   const container = $("#column-view");
+  // Save per-column scroll positions before re-render
+  const savedScrollTops = {};
+  if (preserveScroll) {
+    container.querySelectorAll(".miller-column").forEach((col, i) => {
+      savedScrollTops[i] = col.scrollTop;
+    });
+  }
   container.innerHTML = "";
 
   // Init first column from current directory entries
@@ -1743,9 +1752,11 @@ async function renderColumnView() {
       colEl.appendChild(item);
     }
     container.appendChild(colEl);
+    // Restore saved scroll position for this column
+    if (preserveScroll && savedScrollTops[ci] !== undefined) colEl.scrollTop = savedScrollTops[ci];
   }
-  // Auto scroll right
-  container.scrollLeft = container.scrollWidth;
+  // Auto scroll right (skip when just preserving scroll, e.g. j/k navigation)
+  if (!preserveScroll) container.scrollLeft = container.scrollWidth;
   updateStatusbar();
   lazyLoadAppIcons();
 }
@@ -1846,9 +1857,9 @@ $("#btn-up").onclick = () => { if (parentDir && parentDir !== currentDir) naviga
 $("#btn-view-list").onclick = () => switchView("list");
 $("#btn-view-cols").onclick = () => switchView("columns");
 
-function renderCurrentView() {
-  if (viewMode === "columns") renderColumnView();
-  else renderFiles();
+function renderCurrentView(preserveScroll = false) {
+  if (viewMode === "columns") renderColumnView(preserveScroll);
+  else renderFiles(preserveScroll);
 }
 
 $("#btn-hidden").onclick = () => {
@@ -1929,11 +1940,19 @@ function moveSelection(delta) {
       columnData[activeColumnIndex].selected = items[idx].path;
       columnData = columnData.slice(0, activeColumnIndex + 1);
     }
-    renderCurrentView();
+    renderCurrentView(true);
     renderPreview(items[idx]);
     // Scroll into view
-    const row = document.querySelector(`.file-row[data-path="${CSS.escape(items[idx].path)}"], .miller-item.selected`);
-    if (row) row.scrollIntoView({ block: "nearest" });
+    requestAnimationFrame(() => {
+      let row;
+      if (viewMode === "columns") {
+        const columns = document.querySelectorAll(".miller-column");
+        row = columns[activeColumnIndex]?.querySelector(".miller-item.selected");
+      } else {
+        row = document.querySelector(`.file-row[data-path="${CSS.escape(items[idx].path)}"]`);
+      }
+      if (row) row.scrollIntoView({ block: "nearest" });
+    });
   } else if (focusArea === "tray") {
     const currentPath = [...traySelectedPaths][0];
     let idx = items.findIndex(e => e.path === currentPath);
