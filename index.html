@@ -1559,7 +1559,7 @@ function hideContextMenu() {
 
 document.addEventListener("click", hideContextMenu);
 document.addEventListener("contextmenu", (e) => {
-  if (!e.target.closest(".file-row")) hideContextMenu();
+  if (!e.target.closest(".file-row") && !e.target.closest(".miller-item")) hideContextMenu();
 });
 
 ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
