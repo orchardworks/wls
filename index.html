@@ -946,6 +946,31 @@ function showToast(message, type = "info", duration = 3000) {
   }, duration);
 }
 
+function showConfirm(message, { confirmText = "OK", cancelText = "Cancel", destructive = false } = {}) {
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.className = "quicklook-overlay";
+    overlay.style.zIndex = "9999";
+    overlay.innerHTML = `
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;max-width:360px;text-align:center">
+        <div style="margin-bottom:16px;font-size:13px;line-height:1.5">${escHtml(message)}</div>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button class="modal-cancel" style="padding:6px 16px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer">${escHtml(cancelText)}</button>
+          <button class="modal-ok" style="padding:6px 16px;border:none;border-radius:6px;background:${destructive ? "#e53935" : "var(--selected)"};color:#fff;cursor:pointer;font-weight:500">${escHtml(confirmText)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector(".modal-cancel").onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector(".modal-ok").onclick = () => { overlay.remove(); resolve(true); };
+    overlay.querySelector(".modal-ok").focus();
+    overlay.addEventListener("keydown", e => {
+      if (e.key === "Escape") { overlay.remove(); resolve(false); }
+      if (e.key === "Enter") { overlay.remove(); resolve(true); }
+      e.stopPropagation();
+    });
+  });
+}
+
 async function handleMoveOrCopyResponse(res, action) {
   if (res.status === 207) {
     const data = await res.json();
@@ -2374,8 +2399,8 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     const paths = [...selectedPaths];
     const msg = paths.length > 1 ? `Move ${paths.length} items to Trash?` : `Move "${paths[0].split("/").pop()}" to Trash?`;
-    if (!confirm(msg)) return;
     (async () => {
+      if (!await showConfirm(msg, { confirmText: "Move to Trash", destructive: true })) return;
       try {
         for (const p of paths) {
           await fetch("/api/trash", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: p }) });
@@ -2516,7 +2541,7 @@ ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
       const msg = paths.length > 1
         ? `Move ${paths.length} items to Trash?`
         : `Move "${entry.name}" to Trash?`;
-      if (!confirm(msg)) return;
+      if (!await showConfirm(msg, { confirmText: "Move to Trash", destructive: true })) return;
       try {
         for (const p of paths) {
           await fetch("/api/trash", {
