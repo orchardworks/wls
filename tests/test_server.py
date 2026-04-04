@@ -215,7 +215,7 @@ class TestMove:
         assert exc_info.value.code == 400
 
     def test_move_conflict(self, test_server, temp_dir):
-        """Moving a file where target already exists should fail with 409."""
+        """Moving a file where target already exists should return 207 with errors."""
         # Create a file in subdir with same name
         with open(os.path.join(temp_dir, "subdir", "Makefile"), "w") as f:
             f.write("conflict")
@@ -227,9 +227,10 @@ class TestMove:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with pytest.raises(urllib.error.HTTPError) as exc_info:
-            urllib.request.urlopen(req)
-        assert exc_info.value.code == 409
+        resp = json.loads(urllib.request.urlopen(req).read())
+        assert resp["ok"] is False
+        assert len(resp["errors"]) == 1
+        assert "already exists" in resp["errors"][0]
 
 
 # --- /api/copy ---

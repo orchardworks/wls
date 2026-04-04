@@ -945,6 +945,19 @@ function showToast(message, type = "info", duration = 3000) {
   }, duration);
 }
 
+async function handleMoveOrCopyResponse(res, action) {
+  if (res.status === 207) {
+    const data = await res.json();
+    showToast(`${action} partial failure:\n${data.errors.join("\n")}`, "error", 5000);
+    return true; // some succeeded, refresh
+  }
+  if (!res.ok) {
+    showToast(`${action} failed: ` + (await res.text()), "error");
+    return false;
+  }
+  return true;
+}
+
 // Icon mapping
 const BUNDLE_HIDE_EXT = new Set([".app"]);
 
@@ -1085,8 +1098,7 @@ function renderSidebar() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ paths, dest: destPath }),
         });
-        if (res.ok) navigate(currentDir, false);
-        else showToast("Move failed: " + (await res.text()), "error");
+        if (await handleMoveOrCopyResponse(res, "Move")) navigate(currentDir, false);
       } catch (err) { showToast("Error: " + err.message, "error"); }
     };
   }
@@ -1601,8 +1613,7 @@ function renderFiles(preserveScroll = false) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ paths, dest: entry.path }),
           });
-          if (res.ok) navigate(currentDir, false);
-          else showToast("Move failed: " + (await res.text()), "error");
+          if (await handleMoveOrCopyResponse(res, "Move")) navigate(currentDir, false);
         } catch (err) { showToast("Error: " + err.message, "error"); }
       };
     }
@@ -1737,8 +1748,7 @@ async function renderColumnView(preserveScroll = false) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ paths, dest: entry.path }),
             });
-            if (res.ok) navigate(currentDir, false);
-            else showToast("Move failed: " + (await res.text()), "error");
+            if (await handleMoveOrCopyResponse(res, "Move")) navigate(currentDir, false);
           } catch (err) { showToast("Error: " + err.message, "error"); }
         };
       }
@@ -2926,8 +2936,7 @@ function showTrayDropDialog(paths, destPath) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ paths, dest: destPath }),
           });
-          if (!res.ok) showToast(`${act} failed: ` + (await res.text()), "error");
-          else {
+          if (await handleMoveOrCopyResponse(res, act)) {
             if (!remainChecked) removeFromTray(paths);
             navigate(currentDir, false);
           }

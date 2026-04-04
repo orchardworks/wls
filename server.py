@@ -146,19 +146,22 @@ class FinderHandler(SimpleHTTPRequestHandler):
             self.send_error(404)
 
     def trash_item(self, filepath):
-        """Move file/folder to Trash via macOS API."""
+        """Move file/folder to Trash via macOS NSFileManager API."""
         filepath = os.path.abspath(filepath)
         if not os.path.exists(filepath):
             self.send_error(404, "Not found")
             return
         try:
-            # Use macOS 'trash' via osascript for proper Trash behavior
-            # Escape backslashes and double quotes to prevent injection
-            safe_path = filepath.replace("\\", "\\\\").replace('"', '\\"')
+            # Use Swift with NSFileManager.trashItem — path passed as argument, not interpolated
+            swift_code = (
+                'import Foundation;'
+                'let fm = FileManager.default;'
+                'let url = URL(fileURLWithPath: CommandLine.arguments[1]);'
+                'try fm.trashItem(at: url, resultingItemURL: nil)'
+            )
             subprocess.run(
-                ["osascript", "-e",
-                 f'tell application "Finder" to delete POSIX file "{safe_path}"'],
-                check=True, capture_output=True, timeout=5,
+                ["swift", "-e", swift_code, filepath],
+                check=True, capture_output=True, timeout=10,
             )
             self._json_response({"ok": True})
         except Exception as e:
@@ -190,22 +193,27 @@ class FinderHandler(SimpleHTTPRequestHandler):
         if not os.path.isdir(dest):
             self.send_error(400, "Destination is not a directory")
             return
-        try:
-            for p in paths:
-                p = os.path.abspath(p)
-                if not os.path.exists(p):
+        errors = []
+        for p in paths:
+            p = os.path.abspath(p)
+            name = os.path.basename(p)
+            if not os.path.exists(p):
+                errors.append(f"{name}: not found")
+                continue
+            target = os.path.join(dest, name)
+            if os.path.exists(target):
+                if os.path.abspath(target) == os.path.abspath(p):
                     continue
-                target = os.path.join(dest, os.path.basename(p))
-                if os.path.exists(target):
-                    # Skip if same location
-                    if os.path.abspath(target) == os.path.abspath(p):
-                        continue
-                    self.send_error(409, f"Already exists: {os.path.basename(p)}")
-                    return
+                errors.append(f"{name}: already exists")
+                continue
+            try:
                 shutil.move(p, target)
+            except Exception as e:
+                errors.append(f"{name}: {e}")
+        if errors:
+            self._json_response({"ok": False, "errors": errors}, status=207)
+        else:
             self._json_response({"ok": True})
-        except Exception as e:
-            self.send_error(500, str(e))
 
     def copy_item(self, paths, dest):
         """Copy files/folders into a destination directory."""
@@ -214,24 +222,30 @@ class FinderHandler(SimpleHTTPRequestHandler):
         if not os.path.isdir(dest):
             self.send_error(400, "Destination is not a directory")
             return
-        try:
-            for p in paths:
-                p = os.path.abspath(p)
-                if not os.path.exists(p):
+        errors = []
+        for p in paths:
+            p = os.path.abspath(p)
+            name = os.path.basename(p)
+            if not os.path.exists(p):
+                errors.append(f"{name}: not found")
+                continue
+            target = os.path.join(dest, name)
+            if os.path.exists(target):
+                if os.path.abspath(target) == os.path.abspath(p):
                     continue
-                target = os.path.join(dest, os.path.basename(p))
-                if os.path.exists(target):
-                    if os.path.abspath(target) == os.path.abspath(p):
-                        continue
-                    self.send_error(409, f"Already exists: {os.path.basename(p)}")
-                    return
+                errors.append(f"{name}: already exists")
+                continue
+            try:
                 if os.path.isdir(p):
                     shutil.copytree(p, target)
                 else:
                     shutil.copy2(p, target)
+            except Exception as e:
+                errors.append(f"{name}: {e}")
+        if errors:
+            self._json_response({"ok": False, "errors": errors}, status=207)
+        else:
             self._json_response({"ok": True})
-        except Exception as e:
-            self.send_error(500, str(e))
 
     def make_directory(self, parent, name):
         """Create a new directory."""
@@ -252,8 +266,8 @@ class FinderHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, str(e))
 
-    def _json_response(self, data):
-        self.send_response(200)
+    def _json_response(self, data, status=200):
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
 
         self.end_headers()
