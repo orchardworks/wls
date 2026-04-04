@@ -155,6 +155,7 @@
     font-size: 13px;
   }
   .sidebar-item:hover { background: var(--hover); }
+  .sidebar-item.current { background: var(--hover); }
   .sidebar-item.active { background: var(--selected); }
   /* Dim selection in unfocused areas */
   body[data-focus="main"] .sidebar-item.active,
@@ -1089,7 +1090,7 @@ function renderSidebar() {
   }
   for (const fav of favorites) {
     const el = document.createElement("div");
-    el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === fav.path.replace(/\/$/, "") ? " active" : "");
+    el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === fav.path.replace(/\/$/, "") ? " current" : "");
     el.innerHTML = `<span class="sidebar-icon">${fav.icon}</span>${escHtml(fav.name)}`;
     el.onclick = () => navigate(fav.path);
     makeSidebarDropTarget(el, fav.path);
@@ -1104,7 +1105,7 @@ function renderSidebar() {
     sb.appendChild(section);
     for (const vol of volumes) {
       const el = document.createElement("div");
-      el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === vol.path.replace(/\/$/, "") ? " active" : "");
+      el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === vol.path.replace(/\/$/, "") ? " current" : "");
       const volIcon = vol.name === "Macintosh HD" ? "\uF8FF" : "🗄️";
       el.innerHTML = `<span class="sidebar-icon">${volIcon}</span>${escHtml(vol.name)}`;
       el.onclick = () => navigate(vol.path);
@@ -1983,6 +1984,11 @@ function cycleFocus(reverse) {
   const areas = ["main", "tray", "sidebar"];
   let idx = areas.indexOf(focusArea);
   idx = (idx + (reverse ? -1 : 1) + areas.length) % areas.length;
+  // Clear sidebar keyboard selection when leaving sidebar
+  if (areas[idx] !== "sidebar") {
+    sidebarSelectedIndex = -1;
+    document.querySelectorAll(".sidebar-item.active").forEach(el => el.classList.remove("active"));
+  }
   setFocusArea(areas[idx]);
 
   // Auto-select first item if nothing is selected
