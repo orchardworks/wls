@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>wls</title>
+<title>finder-pane</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📂</text></svg>">
 <style>
   :root {
@@ -914,7 +914,7 @@ let entries = [];
 let history = [];
 let historyIdx = -1;
 let showHidden = false;
-let viewMode = localStorage.getItem("wls-view-mode") || "list"; // "list" or "columns"
+let viewMode = localStorage.getItem("finder-pane-view-mode") || "list"; // "list" or "columns"
 let sortKey = "name";
 let sortAsc = true;
 let filterText = "";
@@ -923,7 +923,7 @@ let lastClickedPath = null;
 const expandedDirs = new Map(); // path → children entries
 
 // Tray state
-let trayItems = JSON.parse(sessionStorage.getItem("wls-tray") || "[]");
+let trayItems = JSON.parse(sessionStorage.getItem("finder-pane-tray") || "[]");
 let traySelectedPaths = new Set();
 let trayActive = false; // true when tray has focus
 
@@ -1114,7 +1114,7 @@ function renderSidebar() {
       el.classList.remove("drop-target");
       const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
       if (paths.length === 0) return;
-      const fromTray = e.dataTransfer.getData("text/x-wls-source") === "tray";
+      const fromTray = e.dataTransfer.getData("text/x-finder-pane-source") === "tray";
       if (fromTray) {
         await showTrayDropDialog(paths, destPath);
         return;
@@ -1166,7 +1166,7 @@ function renderSidebar() {
   // Branding
   const brand = document.createElement("div");
   brand.className = "sidebar-brand";
-  brand.innerHTML = `<a href="https://orchardworks.dev" target="_blank"><img src="/icon.png" alt="Orchardworks" width="24" height="24"></a><span>POWERED BY<br><a href="https://github.com/orchardworks/wls" target="_blank">wls</a> / <a href="https://github.com/orchardworks" target="_blank">Orchardworks</a></span>`;
+  brand.innerHTML = `<a href="https://orchardworks.dev" target="_blank"><img src="/icon.png" alt="Orchardworks" width="24" height="24"></a><span>POWERED BY<br><a href="https://github.com/orchardworks/finder-pane" target="_blank">finder-pane</a> / <a href="https://github.com/orchardworks" target="_blank">Orchardworks</a></span>`;
   sb.appendChild(brand);
 }
 
@@ -1643,7 +1643,7 @@ function renderFiles(preserveScroll = false) {
         row.classList.remove("drop-target");
         const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
         if (paths.length === 0 || paths.includes(entry.path)) return;
-        const fromTray = e.dataTransfer.getData("text/x-wls-source") === "tray";
+        const fromTray = e.dataTransfer.getData("text/x-finder-pane-source") === "tray";
         if (fromTray) {
           await showTrayDropDialog(paths, entry.path);
           return;
@@ -1778,7 +1778,7 @@ async function renderColumnView(preserveScroll = false) {
           item.classList.remove("drop-target");
           const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
           if (paths.length === 0 || paths.includes(entry.path)) return;
-          const fromTray = e.dataTransfer.getData("text/x-wls-source") === "tray";
+          const fromTray = e.dataTransfer.getData("text/x-finder-pane-source") === "tray";
           if (fromTray) {
             await showTrayDropDialog(paths, entry.path);
             return;
@@ -1807,7 +1807,7 @@ async function renderColumnView(preserveScroll = false) {
 
 function switchView(mode) {
   viewMode = mode;
-  localStorage.setItem("wls-view-mode", mode);
+  localStorage.setItem("finder-pane-view-mode", mode);
   $("#btn-view-list").classList.toggle("active", mode === "list");
   $("#btn-view-cols").classList.toggle("active", mode === "columns");
   $("#list-view").classList.toggle("hidden", mode !== "list");
@@ -1865,7 +1865,7 @@ async function navigate(dir, pushHistory = true, selectPath = null) {
     updateNav();
     updateSidebarCurrent();
     renderBreadcrumb();
-    document.title = (currentDir.split("/").pop() || "/") + " — wls";
+    document.title = (currentDir.split("/").pop() || "/") + " — finder-pane";
     if (viewMode === "columns") {
       columnData = [{ dir: currentDir, entries: entries, selected: selectPath || null }]; activeColumnIndex = 0;
       renderColumnView();
@@ -2701,7 +2701,7 @@ function startRename(entry) {
 {
   const handle = $("#sidebar-resize");
   const sidebar = $("#sidebar");
-  const saved = localStorage.getItem("wls-sidebar-width");
+  const saved = localStorage.getItem("finder-pane-sidebar-width");
   if (saved) sidebar.style.width = saved + "px";
 
   let dragging = false;
@@ -2723,7 +2723,7 @@ function startRename(entry) {
     dragging = false;
     handle.classList.remove("dragging");
     document.body.style.cursor = "";
-    localStorage.setItem("wls-sidebar-width", parseInt(sidebar.style.width));
+    localStorage.setItem("finder-pane-sidebar-width", parseInt(sidebar.style.width));
   });
 }
 
@@ -2731,7 +2731,7 @@ function startRename(entry) {
 {
   const handle = $("#preview-resize");
   const pane = $("#preview-pane");
-  const saved = localStorage.getItem("wls-preview-width");
+  const saved = localStorage.getItem("finder-pane-preview-width");
   if (saved) pane.style.width = saved + "px";
 
   let dragging = false;
@@ -2753,13 +2753,13 @@ function startRename(entry) {
     dragging = false;
     handle.classList.remove("dragging");
     document.body.style.cursor = "";
-    localStorage.setItem("wls-preview-width", parseInt(pane.style.width));
+    localStorage.setItem("finder-pane-preview-width", parseInt(pane.style.width));
   });
 }
 
 // ===== Tray =====
 function saveTray() {
-  sessionStorage.setItem("wls-tray", JSON.stringify(trayItems));
+  sessionStorage.setItem("finder-pane-tray", JSON.stringify(trayItems));
 }
 
 function addToTray(entriesToAdd) {
@@ -2808,7 +2808,7 @@ function renderTray() {
   }
 
   clearBtn.classList.remove("hidden");
-  const savedH = localStorage.getItem("wls-tray-height");
+  const savedH = localStorage.getItem("finder-pane-tray-height");
   if (savedH) panel.style.height = savedH + "px";
   else if (!panel.style.height || panel.style.height === "") panel.style.height = "340px";
 
@@ -2852,7 +2852,7 @@ function renderTray() {
       }
       const paths = [...traySelectedPaths];
       e.dataTransfer.setData("application/json", JSON.stringify(paths));
-      e.dataTransfer.setData("text/x-wls-source", "tray");
+      e.dataTransfer.setData("text/x-finder-pane-source", "tray");
       e.dataTransfer.effectAllowed = "copyMove";
     };
 
@@ -2936,7 +2936,7 @@ for (const el of [trayPanel, trayItemsEl]) {
   el.addEventListener("drop", (e) => {
     e.preventDefault();
     trayPanel.classList.remove("tray-drop-active");
-    if (e.dataTransfer.getData("text/x-wls-source") === "tray") return; // don't re-add from tray
+    if (e.dataTransfer.getData("text/x-finder-pane-source") === "tray") return; // don't re-add from tray
     const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
     const toAdd = paths.map(p => {
       let found = entries.find(en => en.path === p);
@@ -2978,7 +2978,7 @@ $("#tray-clear").onclick = clearTray;
       document.removeEventListener("mouseup", onUp);
       handle.classList.remove("dragging");
       document.body.style.cursor = "";
-      localStorage.setItem("wls-tray-height", parseInt(panel.style.height));
+      localStorage.setItem("finder-pane-tray-height", parseInt(panel.style.height));
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
@@ -2989,7 +2989,7 @@ $("#tray-clear").onclick = clearTray;
 function showTrayDropDialog(paths, destPath) {
   const destName = destPath.split("/").pop() || destPath;
   const count = paths.length;
-  const remain = localStorage.getItem("wls-tray-remain") === "true";
+  const remain = localStorage.getItem("finder-pane-tray-remain") === "true";
 
   const overlay = document.createElement("div");
   overlay.className = "tray-dialog-overlay";
@@ -3014,7 +3014,7 @@ function showTrayDropDialog(paths, destPath) {
       btn.onclick = async () => {
         const act = btn.dataset.act;
         const remainChecked = overlay.querySelector("#tray-remain-cb").checked;
-        localStorage.setItem("wls-tray-remain", remainChecked.toString());
+        localStorage.setItem("finder-pane-tray-remain", remainChecked.toString());
 
         if (act === "cancel") {
           overlay.remove();
@@ -3046,13 +3046,13 @@ function showTrayDropDialog(paths, destPath) {
 // Drop from tray onto main file list or column view → move/copy to current directory
 for (const container of [$("#file-list"), $("#column-view")]) {
   container.addEventListener("dragover", (e) => {
-    if (e.dataTransfer.types.includes("text/x-wls-source")) {
+    if (e.dataTransfer.types.includes("text/x-finder-pane-source")) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
     }
   });
   container.addEventListener("drop", async (e) => {
-    if (e.dataTransfer.getData("text/x-wls-source") !== "tray") return;
+    if (e.dataTransfer.getData("text/x-finder-pane-source") !== "tray") return;
     e.preventDefault();
     const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
     if (paths.length === 0) return;

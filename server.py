@@ -90,7 +90,7 @@ _compile_lock = threading.Lock()
 
 def _compile_swift_cached(name, code):
     """Compile Swift code to a cached binary. Thread-safe via atomic rename."""
-    cache_dir = os.path.join(tempfile.gettempdir(), "wls_cache")
+    cache_dir = os.path.join(tempfile.gettempdir(), "finder_pane_cache")
     os.makedirs(cache_dir, exist_ok=True)
     code_hash = hashlib.md5(code.encode()).hexdigest()[:12]
     binary_path = os.path.join(cache_dir, f"{name}_{code_hash}")
@@ -509,7 +509,7 @@ class FinderHandler(SimpleHTTPRequestHandler):
                 self.serve_file(_icon_cache[filepath])
                 return
 
-            cache_dir = os.path.join(tempfile.gettempdir(), "wls_cache", "icons")
+            cache_dir = os.path.join(tempfile.gettempdir(), "finder_pane_cache", "icons")
             os.makedirs(cache_dir, exist_ok=True)
 
             # Use path hash for cache filename

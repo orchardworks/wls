@@ -1,4 +1,4 @@
-"""Tests for wls server API endpoints."""
+"""Tests for finder-pane server API endpoints."""
 
 import json
 import os
@@ -32,7 +32,7 @@ def test_server():
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory with test files."""
-    d = tempfile.mkdtemp(prefix="wls_test_")
+    d = tempfile.mkdtemp(prefix="fp_test_")
     # Create test files and directories
     os.makedirs(os.path.join(d, "subdir"))
     os.makedirs(os.path.join(d, ".hidden_dir"))

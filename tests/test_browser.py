@@ -1,4 +1,4 @@
-"""Browser E2E tests for wls using Playwright."""
+"""Browser E2E tests for finder-pane using Playwright."""
 
 import json
 import os
@@ -19,7 +19,7 @@ import server
 @pytest.fixture(scope="module")
 def temp_dir():
     """Create a temporary directory with test files for browser tests."""
-    d = tempfile.mkdtemp(prefix="wls_browser_test_")
+    d = tempfile.mkdtemp(prefix="fp_browser_test_")
 
     # Create subdirectories
     os.makedirs(os.path.join(d, "subdir"))
@@ -85,9 +85,9 @@ class TestSidebar:
 # --- Smoke Tests ---
 
 class TestBasicLoad:
-    def test_page_title_contains_wls(self, app: Page):
-        """Page title should contain 'wls'."""
-        assert "wls" in app.title().lower()
+    def test_page_title_contains_finder_pane(self, app: Page):
+        """Page title should contain 'finder-pane'."""
+        assert "finder-pane" in app.title().lower()
 
     def test_file_list_renders(self, app: Page):
         """.file-row elements should exist in the file list."""

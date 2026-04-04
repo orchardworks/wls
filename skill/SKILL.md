@@ -1,23 +1,23 @@
 ---
-name: wls
-description: "Use when the user wants to browse directories, view images/videos/files visually, check directory structure, or says 'wlsで見せて', 'wlsで開いて', 'ファイルを見たい', 'ディレクトリ構造を見たい'. Also triggers when user generates images/videos and wants to preview them, or needs a visual file browser alongside their terminal work."
+name: finder-pane
+description: "Use when the user wants to browse directories, view images/videos/files visually, check directory structure, or says 'finder-paneで見せて', 'finder-paneで開いて', 'ファイルを見たい', 'ディレクトリ構造を見たい'. Also triggers when user generates images/videos and wants to preview them, or needs a visual file browser alongside their terminal work."
 user-invocable: true
 version: "1.0.0"
 ---
 
-# wls — Web-based File Browser
+# finder-pane — Web-based File Browser
 
-wls はブラウザで動く Finder ライクなファイルブラウザ。cmux のブラウザペインと組み合わせて、Claude Code の隣でファイル閲覧・画像/動画プレビューができる。
+finder-pane はブラウザで動く Finder ライクなファイルブラウザ。cmux のブラウザペインと組み合わせて、Claude Code の隣でファイル閲覧・画像/動画プレビューができる。
 
 ## セットアップ確認
 
-wls を使う前に、まず以下を確認:
+finder-pane を使う前に、まず以下を確認:
 
-1. **wls の場所を特定** — `WLS_DIR` を探す:
+1. **finder-pane の場所を特定** — `FP_DIR` を探す:
    ```bash
    # skill の symlink 元からプロジェクトルートを推定
-   WLS_DIR="$(dirname "$(readlink -f ~/.claude/skills/wls/SKILL.md)")"
-   WLS_DIR="$(dirname "$WLS_DIR")"  # skill/ の親 = プロジェクトルート
+   FP_DIR="$(dirname "$(readlink -f ~/.claude/skills/finder-pane/SKILL.md)")"
+   FP_DIR="$(dirname "$FP_DIR")"  # skill/ の親 = プロジェクトルート
    ```
 
 2. **サーバーが起動しているか確認**:
@@ -27,7 +27,7 @@ wls を使う前に、まず以下を確認:
 
 3. **起動していなければ起動** (バックグラウンド):
    ```bash
-   "$WLS_DIR/start.sh" &
+   "$FP_DIR/start.sh" &
    ```
 
 ## 使い方
@@ -56,7 +56,7 @@ cmux browser SURFACE_REF navigate "http://localhost:8234/path/to/dir"
 cmux browser open "http://localhost:8234/path/to/image.png"
 ```
 
-ただし、wls の UI 上でプレビューペイン付きで見せたい場合は、**親ディレクトリを開く**のがよい。ユーザーがファイルをクリックすればプレビューペインに表示される。
+ただし、finder-pane の UI 上でプレビューペイン付きで見せたい場合は、**親ディレクトリを開く**のがよい。ユーザーがファイルをクリックすればプレビューペインに表示される。
 
 ```bash
 # 画像があるディレクトリを開く → ユーザーがクリックでプレビュー
@@ -65,13 +65,13 @@ cmux browser open "http://localhost:8234/path/to/directory"
 
 ### ディレクトリ構造を確認する
 
-wls にはツリー展開機能（▶ トグル）があるので、ディレクトリを開けばユーザーが自分で階層を掘っていける。
+finder-pane にはツリー展開機能（▶ トグル）があるので、ディレクトリを開けばユーザーが自分で階層を掘っていける。
 
 ## 典型的なワークフロー
 
-1. ユーザー: 「画像を生成して、wls で見せて」
+1. ユーザー: 「画像を生成して、finder-pane で見せて」
 2. 画像を生成する
-3. wls サーバーが起動しているか確認、なければ起動
+3. finder-pane サーバーが起動しているか確認、なければ起動
 4. cmux でブラウザペインを開き、画像のあるディレクトリを表示
 
 ```bash
@@ -85,6 +85,6 @@ cmux browser open "http://localhost:8234/Users/suzukishin/project/output"
 
 ## 注意点
 
-- wls は macOS 専用（Finder API を使用）
+- finder-pane は macOS 専用（Finder API を使用）
 - サーバーは localhost のみにバインドされるため外部からのアクセスはない
 - cmux 環境外でも、普通のブラウザで `http://localhost:8234` を開けば使える

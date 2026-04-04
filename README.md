@@ -1,10 +1,10 @@
-# wls
+# finder-pane
 
-Web-based Finder-like file browser for macOS. "web ls" — browse your filesystem in the browser.
+Web-based Finder-like file browser for macOS. Browse your filesystem in the browser.
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue) ![macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
 
-## Why wls?
+## Why finder-pane?
 
 When working in the terminal with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), you often need to:
 
@@ -12,37 +12,37 @@ When working in the terminal with [Claude Code](https://docs.anthropic.com/en/do
 - **Preview images** — check generated images or screenshots without leaving the terminal
 - **Preview videos** — quickly verify video output
 
-wls is a Finder-like file browser that runs in a browser pane. Combined with [cmux](https://cmux.dev), you can keep a file browser right next to Claude Code — browse directory trees, preview images and videos, all without switching windows.
+finder-pane is a Finder-like file browser that runs in a browser pane. Combined with [cmux](https://cmux.dev), you can keep a file browser right next to Claude Code — browse directory trees, preview images and videos, all without switching windows.
 
 ### cmux + Claude Code
 
 ```
 ┌─────────────────────┬──────────────────────┐
 │                     │                      │
-│   Claude Code       │   wls (browser)      │
+│   Claude Code       │   finder-pane        │
 │                     │                      │
 │  > generate image   │  📁 output/           │
-│  > show me in wls   │    🖼️ result.png  ◀── │
+│  > show me          │    🖼️ result.png  ◀── │
 │                     │    [preview pane]     │
 │                     │                      │
 └─────────────────────┴──────────────────────┘
 ```
 
-Tell Claude Code "show me in wls" and it opens the file in a cmux browser pane.
+Tell Claude Code "show me in finder-pane" and it opens the file in a cmux browser pane.
 
 ## Install
 
 ```sh
-git clone https://github.com/orchardworks/wls.git
-cd wls
+git clone https://github.com/orchardworks/finder-pane.git
+cd finder-pane
 ```
 
 ### Claude Code skill
 
-wls ships with a Claude Code skill. Once installed, saying things like "show me in wls" or "I want to see the directory structure" will automatically start wls and display files.
+finder-pane ships with a Claude Code skill. Once installed, saying things like "show me in finder-pane" or "I want to see the directory structure" will automatically start finder-pane and display files.
 
 ```sh
-ln -s "$(pwd)/skill" ~/.claude/skills/wls
+ln -s "$(pwd)/skill" ~/.claude/skills/finder-pane
 ```
 
 ## Quick start
