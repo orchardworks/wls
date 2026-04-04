@@ -331,6 +331,8 @@ class FinderHandler(SimpleHTTPRequestHandler):
                     }
                     if is_bundle:
                         entry["is_bundle"] = True
+                    if os.path.islink(full):
+                        entry["is_symlink"] = True
                     entries.append(entry)
                 except (PermissionError, OSError):
                     continue

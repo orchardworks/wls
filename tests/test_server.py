@@ -46,6 +46,8 @@ def temp_dir():
         f.write("all:\n\techo hi")
     # Create a fake .app bundle (directory)
     os.makedirs(os.path.join(d, "Test.app", "Contents"))
+    # Create a symlink
+    os.symlink(os.path.join(d, "file.txt"), os.path.join(d, "link.txt"))
     yield d
     shutil.rmtree(d)
 
@@ -106,6 +108,16 @@ class TestListDirectory:
         assert app["is_dir"] is False, ".app should not be treated as navigable dir"
         assert app.get("is_bundle") is True
         assert app["ext"] == ".app"
+
+    def test_symlink_detection(self, test_server, temp_dir):
+        """Symlinks should have is_symlink=True."""
+        url = f"{test_server}/api/ls?dir={urllib.parse.quote(temp_dir)}"
+        data = json.loads(urllib.request.urlopen(url).read())
+        link = next(e for e in data["entries"] if e["name"] == "link.txt")
+        assert link.get("is_symlink") is True
+        # Regular file should not have is_symlink
+        regular = next(e for e in data["entries"] if e["name"] == "file.txt")
+        assert "is_symlink" not in regular
 
     def test_parent_directory(self, test_server, temp_dir):
         url = f"{test_server}/api/ls?dir={urllib.parse.quote(temp_dir)}"

@@ -287,6 +287,7 @@
     white-space: nowrap;
   }
   .file-icon { font-size: 16px; flex-shrink: 0; }
+  .symlink-badge { font-size: 10px; color: var(--text-dim); margin-left: 2px; flex-shrink: 0; }
   .tree-toggle {
     width: 16px;
     height: 16px;
@@ -1105,6 +1106,7 @@ function renderSidebar() {
   for (const fav of favorites) {
     const el = document.createElement("div");
     el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === fav.path.replace(/\/$/, "") ? " current" : "");
+    el.dataset.path = fav.path;
     el.innerHTML = `<span class="sidebar-icon">${fav.icon}</span>${escHtml(fav.name)}`;
     el.onclick = () => navigate(fav.path);
     makeSidebarDropTarget(el, fav.path);
@@ -1120,6 +1122,7 @@ function renderSidebar() {
     for (const vol of volumes) {
       const el = document.createElement("div");
       el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === vol.path.replace(/\/$/, "") ? " current" : "");
+      el.dataset.path = vol.path;
       const volIcon = vol.name === "Macintosh HD" ? "\uF8FF" : "🗄️";
       el.innerHTML = `<span class="sidebar-icon">${volIcon}</span>${escHtml(vol.name)}`;
       el.onclick = () => navigate(vol.path);
@@ -1139,6 +1142,14 @@ function renderSidebar() {
   brand.className = "sidebar-brand";
   brand.innerHTML = `<a href="https://orchardworks.dev" target="_blank"><img src="/icon.png" alt="Orchardworks" width="24" height="24"></a><span>POWERED BY<br><a href="https://github.com/orchardworks/wls" target="_blank">wls</a> / <a href="https://github.com/orchardworks" target="_blank">Orchardworks</a></span>`;
   sb.appendChild(brand);
+}
+
+function updateSidebarCurrent() {
+  const norm = currentDir.replace(/\/$/, "");
+  document.querySelectorAll(".sidebar-item").forEach(el => {
+    const path = el.dataset.path;
+    if (path) el.classList.toggle("current", path.replace(/\/$/, "") === norm);
+  });
 }
 
 function renderBreadcrumb() {
@@ -1332,7 +1343,7 @@ async function renderSidebarPreview(entry) {
   } else if (ext === ".pdf") {
     sbp.innerHTML = `<iframe src="${fileUrl}#toolbar=0" style="width:100%;flex:1;border:none"></iframe>`;
   } else if (ext === ".html" || ext === ".htm") {
-    sbp.innerHTML = `<iframe src="${fileUrl}" sandbox="allow-same-origin" style="width:100%;flex:1;border:none;background:#fff"></iframe>`;
+    sbp.innerHTML = `<iframe src="${fileUrl}" sandbox="" style="width:100%;flex:1;border:none;background:#fff"></iframe>`;
   } else if (MD_EXTS.has(ext)) {
     try {
       const res = await fetch(fileUrl);
@@ -1437,7 +1448,7 @@ async function renderPreview(entry) {
   } else if (ext === ".pdf") {
     setPreviewContent(`<iframe src="${fileUrl}#toolbar=0" style="width:100%;flex:1;border:none"></iframe>`);
   } else if (ext === ".html" || ext === ".htm") {
-    setPreviewContent(`<iframe src="${fileUrl}" sandbox="allow-same-origin"></iframe>`);
+    setPreviewContent(`<iframe src="${fileUrl}" sandbox=""></iframe>`);
   } else if (MD_EXTS.has(ext)) {
     try {
       const res = await fetch(fileUrl, { signal });
@@ -1535,7 +1546,7 @@ function renderFiles(preserveScroll = false) {
       <div class="file-name" style="padding-left: ${indent}px">
         <span class="${toggleCls}">▶</span>
         <span class="file-icon">${getIcon(entry)}</span>
-        <span>${escHtml(displayName(entry))}</span>
+        <span>${escHtml(displayName(entry))}</span>${entry.is_symlink ? '<span class="symlink-badge" title="Symlink">↗</span>' : ""}
       </div>
       <div class="file-size">${entry.is_dir ? "—" : formatSize(entry.size)}</div>
       <div class="file-date">${formatDate(entry.modified)}</div>
@@ -1688,7 +1699,7 @@ async function renderColumnView(preserveScroll = false) {
       item.className = "miller-item" + (col.selected === entry.path ? " selected" : "");
       item.innerHTML = `
         <span class="file-icon">${getIcon(entry)}</span>
-        <span class="miller-item-name">${escHtml(displayName(entry))}</span>
+        <span class="miller-item-name">${escHtml(displayName(entry))}</span>${entry.is_symlink ? '<span class="symlink-badge" title="Symlink">↗</span>' : ""}
         ${entry.is_dir ? '<span class="miller-item-arrow">▶</span>' : ""}
       `;
       item.onclick = async () => {
@@ -1825,7 +1836,7 @@ async function navigate(dir, pushHistory = true, selectPath = null) {
     }
 
     updateNav();
-    renderSidebar();
+    updateSidebarCurrent();
     renderBreadcrumb();
     document.title = (currentDir.split("/").pop() || "/") + " — wls";
     if (viewMode === "columns") {
@@ -2138,7 +2149,7 @@ function toggleQuickLook() {
     panelStyle = "width:70vw;height:80vh;";
     bodyStyle = "padding:0;";
   } else if (ext === ".html" || ext === ".htm") {
-    bodyContent = `<iframe src="${fileUrl}" sandbox="allow-same-origin"></iframe>`;
+    bodyContent = `<iframe src="${fileUrl}" sandbox=""></iframe>`;
     panelStyle = "width:70vw;height:80vh;";
     bodyStyle = "padding:0;";
   } else if (MD_EXTS.has(ext)) {
