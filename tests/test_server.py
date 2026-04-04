@@ -404,6 +404,43 @@ class TestServeFile:
         assert resp.headers.get("Accept-Ranges") == "bytes"
 
 
+# --- /api/info ---
+
+class TestInfo:
+    def test_file_info(self, test_server, temp_dir):
+        filepath = os.path.join(temp_dir, "file.txt")
+        url = f"{test_server}/api/info?path={urllib.parse.quote(filepath)}"
+        data = json.loads(urllib.request.urlopen(url).read())
+        assert data["name"] == "file.txt"
+        assert data["path"] == filepath
+        assert data["size"] == 5
+        assert data["is_dir"] is False
+        assert "created" in data
+        assert "modified" in data
+        assert "permissions" in data
+        assert "owner" in data
+
+    def test_dir_info(self, test_server, temp_dir):
+        url = f"{test_server}/api/info?path={urllib.parse.quote(temp_dir)}"
+        data = json.loads(urllib.request.urlopen(url).read())
+        assert data["is_dir"] is True
+        assert "item_count" in data
+        assert data["item_count"] > 0
+
+    def test_symlink_info(self, test_server, temp_dir):
+        filepath = os.path.join(temp_dir, "link.txt")
+        url = f"{test_server}/api/info?path={urllib.parse.quote(filepath)}"
+        data = json.loads(urllib.request.urlopen(url).read())
+        assert data["is_symlink"] is True
+        assert "symlink_target" in data
+
+    def test_nonexistent_info(self, test_server):
+        url = f"{test_server}/api/info?path=/nonexistent_xyz"
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(url)
+        assert exc_info.value.code == 404
+
+
 # --- CORS ---
 
 class TestCORS:

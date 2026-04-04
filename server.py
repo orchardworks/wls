@@ -289,6 +289,10 @@ class FinderHandler(SimpleHTTPRequestHandler):
             filepath = params.get("path", [""])[0]
             reveal = params.get("reveal", [""])[0] == "1"
             self.open_file(filepath, reveal=reveal)
+        elif parsed.path == "/api/info":
+            params = urllib.parse.parse_qs(parsed.query)
+            filepath = params.get("path", [""])[0]
+            self.serve_info(filepath)
         elif parsed.path == "/api/icon":
             params = urllib.parse.parse_qs(parsed.query)
             filepath = params.get("path", [""])[0]
@@ -350,6 +354,40 @@ class FinderHandler(SimpleHTTPRequestHandler):
             self.send_error(403, "Permission denied")
         except FileNotFoundError:
             self.send_error(404, "Directory not found")
+
+    def serve_info(self, filepath):
+        """Return detailed file/folder metadata."""
+        filepath = os.path.abspath(filepath)
+        if not os.path.exists(filepath):
+            self.send_error(404, "Not found")
+            return
+        try:
+            stat = os.stat(filepath)
+            lstat = os.lstat(filepath)
+            import pwd, grp, stat as stat_mod
+            info = {
+                "name": os.path.basename(filepath),
+                "path": filepath,
+                "size": stat.st_size,
+                "created": stat.st_birthtime if hasattr(stat, "st_birthtime") else stat.st_ctime,
+                "modified": stat.st_mtime,
+                "accessed": stat.st_atime,
+                "is_dir": os.path.isdir(filepath),
+                "is_symlink": os.path.islink(filepath),
+                "permissions": stat_mod.filemode(lstat.st_mode),
+                "owner": pwd.getpwuid(stat.st_uid).pw_name,
+                "group": grp.getgrgid(stat.st_gid).gr_name,
+            }
+            if os.path.islink(filepath):
+                info["symlink_target"] = os.readlink(filepath)
+            if os.path.isdir(filepath):
+                try:
+                    info["item_count"] = len(os.listdir(filepath))
+                except PermissionError:
+                    info["item_count"] = -1
+            self._json_response(info)
+        except Exception as e:
+            self.send_error(500, str(e))
 
     def serve_favorites(self):
         try:

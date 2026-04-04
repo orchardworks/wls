@@ -889,6 +889,7 @@
   <div class="context-menu-item" data-action="copy-path">Copy Path<span class="context-menu-shortcut">⌘+C</span></div>
   <div class="context-menu-item" data-action="rename">Rename<span class="context-menu-shortcut">R</span></div>
   <div class="context-menu-item" data-action="new-folder">New Folder<span class="context-menu-shortcut">N</span></div>
+  <div class="context-menu-item" data-action="get-info">Get Info<span class="context-menu-shortcut">⌘+I</span></div>
   <div class="context-menu-sep"></div>
   <div class="context-menu-item danger" data-action="trash">Move to Trash<span class="context-menu-shortcut">⌘+⌫</span></div>
 </div>
@@ -2222,7 +2223,45 @@ function toggleQuickLook() {
   document.body.appendChild(overlay);
 }
 
+async function showGetInfo(path) {
+  try {
+    const res = await fetch("/api/info?path=" + encodeURIComponent(path));
+    if (!res.ok) { showToast("Failed to get info", "error"); return; }
+    const info = await res.json();
+    const overlay = document.createElement("div");
+    overlay.className = "quicklook-overlay";
+    overlay.id = "getinfo-overlay";
+    const rows = [
+      ["Name", escHtml(info.name)],
+      ["Kind", info.is_dir ? "Folder" : (info.name.split(".").pop().toUpperCase() + " File")],
+      ["Size", info.is_dir ? `${info.item_count} items` : formatSize(info.size)],
+      ["Path", `<span style="word-break:break-all">${escHtml(info.path)}</span>`],
+      ["Created", new Date(info.created * 1000).toLocaleString()],
+      ["Modified", new Date(info.modified * 1000).toLocaleString()],
+      ["Accessed", new Date(info.accessed * 1000).toLocaleString()],
+      ["Permissions", escHtml(info.permissions)],
+      ["Owner", escHtml(info.owner + ":" + info.group)],
+    ];
+    if (info.is_symlink) rows.push(["Symlink Target", escHtml(info.symlink_target || "")]);
+    const tableHtml = rows.map(([k, v]) => `<tr><td style="font-weight:500;padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top;color:var(--text-dim)">${k}</td><td style="padding:3px 0">${v}</td></tr>`).join("");
+    overlay.innerHTML = `
+      <div class="quicklook-panel" style="width:420px;max-height:80vh;overflow:auto">
+        <div class="quicklook-header"><span style="font-weight:600">Get Info</span><span class="ql-close">&times;</span></div>
+        <div style="padding:16px"><table style="font-size:12px;width:100%">${tableHtml}</table></div>
+      </div>`;
+    overlay.querySelector(".ql-close").onclick = () => overlay.remove();
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
+  } catch (e) { showToast("Error: " + e.message, "error"); }
+}
+
 document.addEventListener("keydown", (e) => {
+  // Get Info modal
+  if (document.getElementById("getinfo-overlay")) {
+    if (e.key === "Escape") { document.getElementById("getinfo-overlay").remove(); e.preventDefault(); return; }
+    e.stopPropagation();
+    return;
+  }
   // Quick Look open
   if (document.getElementById("quicklook-overlay")) {
     if (e.key === " " || e.key === "Escape") { e.preventDefault(); toggleQuickLook(); return; }
@@ -2394,6 +2433,13 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
+  // Cmd+I — Get Info
+  if ((e.metaKey || e.ctrlKey) && e.key === "i" && focusArea === "main" && selectedPaths.size === 1) {
+    e.preventDefault();
+    showGetInfo([...selectedPaths][0]);
+    return;
+  }
+
   // Cmd+Delete / Cmd+Backspace — move to trash
   if ((e.metaKey || e.ctrlKey) && (e.key === "Delete" || e.key === "Backspace") && focusArea === "main" && selectedPaths.size > 0) {
     e.preventDefault();
@@ -2536,6 +2582,8 @@ ctxMenu.querySelectorAll(".context-menu-item").forEach(item => {
       startRename(entry);
     } else if (action === "new-folder") {
       createNewFolder();
+    } else if (action === "get-info") {
+      showGetInfo(entry.path);
     } else if (action === "trash") {
       const paths = [...selectedPaths];
       const msg = paths.length > 1
