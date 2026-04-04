@@ -1005,7 +1005,9 @@ function formatDate(ts) {
   if (diff < 86400000 && d.getDate() === now.getDate()) {
     return "Today " + d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
   }
-  if (diff < 172800000) return "Yesterday";
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear()) return "Yesterday";
   return d.toLocaleDateString([], {month: "short", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined});
 }
 
@@ -1158,6 +1160,7 @@ function renderBreadcrumb() {
 // Preview
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".tiff", ".heic"]);
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"]);
+const AUDIO_EXTS = new Set([".mp3", ".wav", ".aac", ".ogg", ".flac", ".m4a", ".wma", ".aiff", ".alac"]);
 const MD_EXTS = new Set([".md", ".markdown", ".mkd"]);
 const CODE_EXTS = new Set([
   ".js", ".ts", ".jsx", ".tsx", ".py", ".rb", ".go", ".rs", ".java",
@@ -1292,7 +1295,7 @@ async function renderSidebarPreview(entry) {
   if (!sbp) return;
   if (!entry) { sbp.innerHTML = ""; return; }
   const ext = entry.ext;
-  const fileUrl = encodeURI(entry.path);
+  const fileUrl = encodeFilePath(entry.path);
   let _sbpRawText = null;
   function sbpCopyBtn() {
     return `<button class="sbp-copy-btn" title="Copy">📋</button>`;
@@ -1312,6 +1315,8 @@ async function renderSidebarPreview(entry) {
     sbp.innerHTML = `<img src="${fileUrl}" alt="${escHtml(entry.name)}">`;
   } else if (VIDEO_EXTS.has(ext)) {
     sbp.innerHTML = `<video src="${fileUrl}" controls muted style="max-width:100%"></video>`;
+  } else if (AUDIO_EXTS.has(ext)) {
+    sbp.innerHTML = `<audio src="${fileUrl}" controls style="width:100%;margin-top:8px"></audio>`;
   } else if (ext === ".pdf") {
     sbp.innerHTML = `<iframe src="${fileUrl}#toolbar=0" style="width:100%;flex:1;border:none"></iframe>`;
   } else if (ext === ".html" || ext === ".htm") {
@@ -1364,7 +1369,7 @@ async function renderPreview(entry) {
   if (rightPaneBlocked) return; // don't populate right pane if CSS blocks it
   pane.classList.remove("hidden");
   const ext = entry.ext;
-  const fileUrl = encodeURI(entry.path);
+  const fileUrl = encodeFilePath(entry.path);
 
   if (entry.is_dir) {
     // Fetch folder contents for preview
@@ -1406,6 +1411,13 @@ async function renderPreview(entry) {
     setPreviewContent(`<img src="${fileUrl}" alt="${escHtml(entry.name)}">`);
   } else if (VIDEO_EXTS.has(ext)) {
     setPreviewContent(`<video src="${fileUrl}" controls autoplay muted></video>`);
+  } else if (AUDIO_EXTS.has(ext)) {
+    setPreviewContent(`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1">
+      <div style="font-size:64px;margin-bottom:16px">🎵</div>
+      <div style="font-weight:500;margin-bottom:12px">${escHtml(entry.name)}</div>
+      <audio src="${fileUrl}" controls autoplay></audio>
+      <div class="preview-meta" style="margin-top:8px;color:var(--text-dim)">${formatSize(entry.size)}<br>Modified: ${formatDate(entry.modified)}</div>
+    </div>`);
   } else if (ext === ".pdf") {
     setPreviewContent(`<iframe src="${fileUrl}#toolbar=0" style="width:100%;flex:1;border:none"></iframe>`);
   } else if (ext === ".html" || ext === ".htm") {
@@ -1760,6 +1772,9 @@ function switchView(mode) {
 function escHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+function encodeFilePath(p) {
+  return p.split("/").map(s => encodeURIComponent(s)).join("/");
+}
 
 let favoritesLoaded = false;
 
@@ -1790,7 +1805,7 @@ async function navigate(dir, pushHistory = true, selectPath = null) {
     }
 
     // URLバーを現在のディレクトリに同期
-    const newUrl = encodeURI(currentDir);
+    const newUrl = encodeFilePath(currentDir);
     if (window.location.pathname !== newUrl) {
       window.history.replaceState({ dir: currentDir }, "", newUrl);
     }
@@ -2090,7 +2105,7 @@ function toggleQuickLook() {
   overlay.className = "quicklook-overlay";
 
   const ext = entry.ext || "";
-  const fileUrl = encodeURI(entry.path);
+  const fileUrl = encodeFilePath(entry.path);
   let bodyContent = "";
   let bodyStyle = "";
   let panelStyle = "";
@@ -2101,6 +2116,9 @@ function toggleQuickLook() {
   } else if (VIDEO_EXTS.has(ext)) {
     bodyContent = `<video src="${fileUrl}" controls autoplay muted></video>`;
     panelStyle = "width:70vw;height:70vh;";
+  } else if (AUDIO_EXTS.has(ext)) {
+    bodyContent = `<div style="text-align:center;padding:32px"><div style="font-size:64px;margin-bottom:16px">🎵</div><div style="margin-bottom:16px">${escHtml(entry.name)}</div><audio src="${fileUrl}" controls autoplay></audio></div>`;
+    panelStyle = "width:400px;";
   } else if (ext === ".pdf") {
     bodyContent = `<iframe src="${fileUrl}"></iframe>`;
     panelStyle = "width:70vw;height:80vh;";
