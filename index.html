@@ -851,18 +851,18 @@
 </div>
 
 <div class="main">
-  <div class="sidebar" id="sidebar"><div class="sidebar-resize-handle" id="sidebar-resize"></div></div>
+  <nav class="sidebar" id="sidebar" role="navigation" aria-label="Sidebar"><div class="sidebar-resize-handle" id="sidebar-resize"></div></nav>
   <div class="content-area">
     <div class="file-area-wrapper">
-      <div class="file-area" id="list-view">
-        <div class="col-header">
-          <span data-sort="name">Name</span>
-          <span data-sort="size">Size</span>
-          <span data-sort="modified">Modified</span>
+      <div class="file-area" id="list-view" role="grid" aria-label="File list">
+        <div class="col-header" role="row">
+          <span data-sort="name" role="columnheader">Name</span>
+          <span data-sort="size" role="columnheader">Size</span>
+          <span data-sort="modified" role="columnheader">Modified</span>
         </div>
-        <div class="file-list" id="file-list"></div>
+        <div class="file-list" id="file-list" role="rowgroup"></div>
       </div>
-      <div class="column-view hidden" id="column-view"></div>
+      <div class="column-view hidden" id="column-view" role="tree" aria-label="Column view"></div>
       <div class="preview-pane hidden" id="preview-pane">
         <div class="preview-resize-handle" id="preview-resize"></div>
       </div>
@@ -3042,16 +3042,15 @@ function showTrayDropDialog(paths, destPath) {
   });
 }
 
-// Drop from tray onto main file list → move/copy to current directory
-{
-  const fileList = $("#file-list");
-  fileList.addEventListener("dragover", (e) => {
+// Drop from tray onto main file list or column view → move/copy to current directory
+for (const container of [$("#file-list"), $("#column-view")]) {
+  container.addEventListener("dragover", (e) => {
     if (e.dataTransfer.types.includes("text/x-wls-source")) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
     }
   });
-  fileList.addEventListener("drop", async (e) => {
+  container.addEventListener("drop", async (e) => {
     if (e.dataTransfer.getData("text/x-wls-source") !== "tray") return;
     e.preventDefault();
     const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
