@@ -255,7 +255,7 @@ class FinderHandler(SimpleHTTPRequestHandler):
     def _json_response(self, data):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
@@ -329,7 +329,7 @@ class FinderHandler(SimpleHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
+    
             self.end_headers()
             self.wfile.write(json.dumps({
                 "dir": directory,
@@ -359,7 +359,7 @@ class FinderHandler(SimpleHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+
         self.end_headers()
         self.wfile.write(json.dumps(favorites).encode())
 
@@ -373,7 +373,7 @@ class FinderHandler(SimpleHTTPRequestHandler):
                     volumes.append({"name": name, "path": full})
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+
         self.end_headers()
         self.wfile.write(json.dumps(volumes).encode())
 
@@ -392,7 +392,7 @@ class FinderHandler(SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(size))
-            self.send_header("Access-Control-Allow-Origin", "*")
+    
             self.send_header("Cache-Control", "max-age=60")
             self.end_headers()
             with open(filepath, "rb") as f:

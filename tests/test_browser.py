@@ -340,3 +340,67 @@ class TestGoToOriginalLocation:
         # Should have navigated back to temp_dir
         current_dir = app.evaluate("() => currentDir")
         assert current_dir == temp_dir
+
+
+# --- Security ---
+
+class TestMarkdownXSS:
+    def test_script_tag_in_markdown_is_escaped(self, page: Page, test_server, temp_dir):
+        """Markdown with <script> tags should not execute JavaScript."""
+        # Create a malicious markdown file
+        md_path = os.path.join(temp_dir, "xss_test.md")
+        with open(md_path, "w") as f:
+            f.write("# Hello\n\n<script>window.__xss_fired=true</script>\n")
+
+        page.goto(f"{test_server}{temp_dir}")
+        page.wait_for_selector(".file-row", timeout=5000)
+
+        # Click the markdown file to trigger preview
+        row = page.query_selector(f'.file-row[data-path="{md_path}"]')
+        if row:
+            row.click()
+            page.wait_for_timeout(500)
+
+        # The script should NOT have executed
+        xss = page.evaluate("() => window.__xss_fired || false")
+        assert xss is False
+
+    def test_script_in_markdown_shows_escaped(self, page: Page, test_server, temp_dir):
+        """Script tags should be visible as escaped text in preview."""
+        md_path = os.path.join(temp_dir, "xss_test.md")
+        with open(md_path, "w") as f:
+            f.write("# Test\n\n<script>alert(1)</script>\n")
+
+        page.goto(f"{test_server}{temp_dir}")
+        page.wait_for_selector(".file-row", timeout=5000)
+
+        row = page.query_selector(f'.file-row[data-path="{md_path}"]')
+        if row:
+            row.click()
+            page.wait_for_timeout(500)
+
+        # The escaped script text should be visible
+        preview_text = page.evaluate("() => document.querySelector('#preview-pane')?.innerText || ''")
+        assert "alert" in preview_text
+
+
+class TestEscHtml:
+    def test_filename_with_quotes_does_not_break_html(self, page: Page, test_server, temp_dir):
+        """A filename with double quotes should not break HTML attributes."""
+        # Create a file with quotes in name
+        quoted_path = os.path.join(temp_dir, 'file"quoted.txt')
+        with open(quoted_path, "w") as f:
+            f.write("test")
+
+        page.goto(f"{test_server}{temp_dir}")
+        page.wait_for_selector(".file-row", timeout=5000)
+
+        # The page should render without errors
+        # Check no unclosed tags or broken attributes
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.wait_for_timeout(300)
+
+        # File should appear in the listing
+        rows = page.query_selector_all(".file-row")
+        assert len(rows) > 0

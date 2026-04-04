@@ -372,6 +372,21 @@ class TestServeFile:
         assert exc_info.value.code == 404
 
 
+# --- CORS ---
+
+class TestCORS:
+    def test_no_cors_header_on_listing(self, test_server):
+        url = f"{test_server}/api/ls?dir=~"
+        resp = urllib.request.urlopen(url)
+        assert resp.headers.get("Access-Control-Allow-Origin") is None
+
+    def test_no_cors_header_on_file(self, test_server, temp_dir):
+        filepath = os.path.join(temp_dir, "Makefile")
+        url = f"{test_server}/api/file?path={urllib.parse.quote(filepath)}"
+        resp = urllib.request.urlopen(url)
+        assert resp.headers.get("Access-Control-Allow-Origin") is None
+
+
 # --- BUNDLE_EXTS ---
 
 class TestBundleExts:

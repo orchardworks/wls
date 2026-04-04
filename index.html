@@ -1171,10 +1171,19 @@ const CODE_EXTS = new Set([
 
 // Minimal markdown → HTML renderer
 function renderMarkdown(src) {
-  let html = src;
-  // Code blocks (``` ... ```)
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-    `<pre><code>${escHtml(code.trimEnd())}</code></pre>`);
+  // Extract code blocks first, escape everything else, then reassemble
+  const codeBlocks = [];
+  let html = src.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const placeholder = `\x00CB${codeBlocks.length}\x00`;
+    codeBlocks.push(`<pre><code>${escHtml(code.trimEnd())}</code></pre>`);
+    return placeholder;
+  });
+  // Escape HTML in non-code-block text to prevent XSS
+  html = escHtml(html);
+  // Restore code blocks
+  codeBlocks.forEach((block, i) => {
+    html = html.replace(`\x00CB${i}\x00`, block);
+  });
   // Tables
   html = html.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)*)/gm, (_, hdr, sep, body) => {
     const heads = hdr.split("|").filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join("");
@@ -1200,10 +1209,12 @@ function renderMarkdown(src) {
   html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
   // Inline code
   html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-  // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2">');
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  // Images (reject javascript: URLs)
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) =>
+    /^\s*javascript:/i.test(decodeURIComponent(url)) ? alt : `<img alt="${alt}" src="${url}">`);
+  // Links (reject javascript: URLs)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) =>
+    /^\s*javascript:/i.test(decodeURIComponent(url)) ? text : `<a href="${url}" target="_blank">${text}</a>`);
   // Unordered lists
   html = html.replace(/(^[-*]\s+.+\n?)+/gm, (block) => {
     const items = block.trim().split("\n").map(l => `<li>${l.replace(/^[-*]\s+/, "")}</li>`).join("");
@@ -1241,10 +1252,12 @@ function highlightJson(text) {
 // Basic syntax highlighting for code
 function highlightCode(text, ext) {
   let h = escHtml(text);
-  // Comments (// and #)
-  h = h.replace(/(\/\/.*$|#.*$)/gm, '<span class="syn-cmt">$1</span>');
-  // Strings
-  h = h.replace(/(["'])(?:(?!\1|\\).|\\.)*\1/g, '<span class="syn-str">$&</span>');
+  // Single-pass: match strings and comments together so strings take precedence
+  // # comments only match at line start or after whitespace (avoids &#39; entities)
+  h = h.replace(/(["'])(?:(?!\1|\\).|\\.)*\1|\/\/.*$|(?<=^|\s)#.*$/gm, (m) => {
+    if (m[0] === '"' || m[0] === "'") return '<span class="syn-str">' + m + '</span>';
+    return '<span class="syn-cmt">' + m + '</span>';
+  });
   // Numbers
   h = h.replace(/\b(\d+\.?\d*)\b/g, '<span class="syn-num">$1</span>');
   // Keywords
@@ -1744,7 +1757,7 @@ function switchView(mode) {
 }
 
 function escHtml(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 let favoritesLoaded = false;
