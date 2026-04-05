@@ -1,74 +1,86 @@
 # finder-pane
 
-Web-based Finder-like file browser for macOS. Browse your filesystem in the browser.
+A visual file browser for your terminal.
+Browse files, preview images and videos right next to Claude Code.
 
-![Python](https://img.shields.io/badge/python-3.8+-blue) ![macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
-
-## Why finder-pane?
-
-When working in the terminal with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), you often need to:
-
-- **See directory structure at a glance** — `ls` and `tree` don't give you the full picture
-- **Preview images** — check generated images or screenshots without leaving the terminal
-- **Preview videos** — quickly verify video output
-
-finder-pane is a Finder-like file browser that runs in a browser pane. Combined with [cmux](https://cmux.dev), you can keep a file browser right next to Claude Code — browse directory trees, preview images and videos, all without switching windows.
-
-### cmux + Claude Code
-
-```
-┌─────────────────────┬──────────────────────┐
-│                     │                      │
-│   Claude Code       │   finder-pane        │
-│                     │                      │
-│  > generate image   │  📁 output/           │
-│  > show me          │    🖼️ result.png  ◀── │
-│                     │    [preview pane]     │
-│                     │                      │
-└─────────────────────┴──────────────────────┘
-```
-
-Tell Claude Code "show me in finder-pane" and it opens the file in a cmux browser pane.
-
-## Install
-
-### Homebrew
+![macOS](https://img.shields.io/badge/platform-macOS-lightgrey) ![Python](https://img.shields.io/badge/python-3.8+-blue) ![Zero Dependencies](https://img.shields.io/badge/dependencies-none-green)
 
 ```sh
 brew install orchardworks/tap/finder-pane
 ```
 
-### Claude Code skill
+![Claude Code and finder-pane side by side in cmux](docs/finder-pane-with-cmux.png)
 
-finder-pane ships with a Claude Code skill. Once installed, saying things like "show me in finder-pane" or "I want to see the directory structure" will automatically start finder-pane and display files.
+## Features
+
+### Browse files while you code
+
+finder-pane runs in a browser pane next to Claude Code via [cmux](https://cmux.dev).
+See your directory structure, navigate folders, and check what's there — without switching windows.
+
+### Preview files instantly
+
+Click a file to preview it inline. Images, videos, Markdown, PDF, HTML — no need to open another app.
+Great for checking generated images, reading docs, or reviewing video output without leaving your workflow.
+
+<p>
+  <img src="docs/image-preview.png" alt="Image preview" width="49%">
+  <img src="docs/markdown-preview.png" alt="Markdown preview" width="49%">
+</p>
+
+### One workspace for scattered files
+
+Pin files from any directory into the tray. Preview images, compare outputs, all without juggling Finder windows.
+
+![Tray with pinned files](docs/tray.png)
+
+### One command to open
+
+Type `/finder-pane` in Claude Code and it opens instantly.
+The Claude Code skill handles server startup and browser pane — you just say the word.
+
+## Get started
+
+**1. Install**
+
+```sh
+brew install orchardworks/tap/finder-pane
+```
+
+**2. Add Claude Code skill**
 
 ```sh
 finder-pane install-skill
 ```
 
-## Quick start
+This enables the `/finder-pane` command in Claude Code.
 
-```sh
-finder-pane              # starts on port 8234
-finder-pane start 9000   # or specify a port
+**3. Use**
+
+```
+/finder-pane
 ```
 
-Open `http://localhost:8234` in your browser.
+Opens the current directory in a browser pane.
 
-### With cmux
+## Manual usage
 
 ```sh
-cmux browser open http://localhost:8234
+finder-pane              # starts server on port 8234
+finder-pane start 9000   # specify a port
+finder-pane open          # start server + open in cmux browser pane
+finder-pane status        # check if server is running
 ```
 
-## Features
+Open `http://localhost:8234` in any browser.
+
+## More features
 
 - **Finder sidebar sync** — reads your actual Finder sidebar favorites via `LSSharedFileList` API (Swift)
 - **Volumes/Locations** — mounted external drives automatically appear in the sidebar
-- **Tree expansion** — click `▶` on folders to expand inline, just like Finder's list view
-- **Image/video preview** — single-click a file to preview images (`png`, `jpg`, `gif`, `webp`, `heic`, ...) and videos (`mp4`, `mov`, `mkv`, ...) in a side pane
-- **URL = path** — the browser URL reflects the current directory (e.g., `localhost:8234/Users/you/Desktop`), and direct URL access works
-- **Sort, filter, hidden files** — click column headers to sort, type to filter, toggle `.*` to show hidden files
+- **Tree expansion** — click folders to expand inline, just like Finder's list view
+- **URL = path** — the browser URL reflects the current directory (e.g., `localhost:8234/Users/you/Desktop`)
+- **Sort, filter, hidden files** — click column headers to sort, type to filter, toggle hidden files
 - **Zero dependencies** — pure Python standard library + a small Swift snippet (compiled and cached automatically)
 
 ## Requirements
@@ -79,17 +91,19 @@ cmux browser open http://localhost:8234
 
 ## API
 
-`server.py` runs a lightweight HTTP server:
-
 | Endpoint | Description |
 |---|---|
-| `/` | Single-page UI (`index.html`) |
+| `/` | Single-page UI |
 | `/api/ls?dir=PATH` | Directory listing (JSON) |
-| `/api/favorites` | Finder sidebar favorites (via compiled Swift binary) |
-| `/api/volumes` | Mounted volumes from `/Volumes/` |
+| `/api/favorites` | Finder sidebar favorites |
+| `/api/volumes` | Mounted volumes |
 | `/api/file?path=PATH` | Raw file content with correct MIME type |
 | `/api/open?path=PATH` | Open file with macOS default app |
 | `/*` | Any path serves the file directly, or the UI if it's a directory |
+
+## Links
+
+- [orchardworks.dev/finder-pane](https://orchardworks.dev/finder-pane/) — Product page
 
 ## License
 
