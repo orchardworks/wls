@@ -94,7 +94,7 @@ def cmd_status(args):
 
 
 def cmd_install_skill():
-    project_root = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.realpath(__file__))
     skill_source = os.path.join(project_root, "skill")
 
     if not os.path.isdir(skill_source):
