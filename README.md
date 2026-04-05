@@ -83,6 +83,14 @@ Open `http://localhost:8234` in any browser.
 - **Sort, filter, hidden files** — click column headers to sort, type to filter, toggle hidden files
 - **Zero dependencies** — pure Python standard library + a small Swift snippet (compiled and cached automatically)
 
+## Full Disk Access
+
+To browse `~/Documents`, `~/Downloads`, `~/Desktop`, and other protected directories, grant **Full Disk Access** to cmux:
+
+**System Settings → Privacy & Security → Full Disk Access → add cmux**
+
+Without this, macOS will block access and those directories will appear empty or return permission errors.
+
 ## Requirements
 
 - macOS
