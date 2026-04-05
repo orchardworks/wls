@@ -32,7 +32,7 @@ def cmd_start(args):
             print(f"Invalid port: {args[0]}", file=sys.stderr)
             sys.exit(1)
 
-    server_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
+    server_py = os.path.join(os.path.dirname(os.path.realpath(__file__)), "server.py")
     os.execvp(sys.executable, [sys.executable, server_py, str(port)])
 
 
@@ -47,7 +47,7 @@ def _is_server_running(port=DEFAULT_PORT):
 
 def _start_server_background(port=DEFAULT_PORT):
     import subprocess
-    server_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
+    server_py = os.path.join(os.path.dirname(os.path.realpath(__file__)), "server.py")
     subprocess.Popen(
         [sys.executable, server_py, str(port)],
         stdout=subprocess.DEVNULL,
