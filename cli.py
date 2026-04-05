@@ -11,7 +11,9 @@ USAGE = f"""\
 finder-pane {VERSION} — Finder-like file browser for macOS
 
 Usage:
+  finder-pane open [PATH]        Open PATH (default: cwd) in a cmux browser pane
   finder-pane start [PORT]       Start the server (default port: {DEFAULT_PORT})
+  finder-pane status             Check if the server is running
   finder-pane install-skill      Install Claude Code skill
   finder-pane uninstall-skill    Remove Claude Code skill
   finder-pane version            Show version
@@ -32,6 +34,63 @@ def cmd_start(args):
 
     server_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
     os.execvp(sys.executable, [sys.executable, server_py, str(port)])
+
+
+def _is_server_running(port=DEFAULT_PORT):
+    import urllib.request
+    try:
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/api/volumes", timeout=2)
+        return True
+    except Exception:
+        return False
+
+
+def _start_server_background(port=DEFAULT_PORT):
+    import subprocess
+    server_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
+    subprocess.Popen(
+        [sys.executable, server_py, str(port)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    # Wait for server to be ready
+    import time
+    for _ in range(20):
+        time.sleep(0.25)
+        if _is_server_running(port):
+            return True
+    return False
+
+
+def cmd_open(args):
+    path = os.path.abspath(args[0]) if args else os.getcwd()
+
+    if not _is_server_running():
+        print("Starting server...", file=sys.stderr)
+        if not _start_server_background():
+            print("Failed to start server", file=sys.stderr)
+            sys.exit(1)
+
+    import subprocess
+    url = f"http://localhost:{DEFAULT_PORT}{path}"
+    subprocess.run(["cmux", "browser", "open", url])
+
+
+def cmd_status(args):
+    import urllib.request
+    port = DEFAULT_PORT
+    if args:
+        try:
+            port = int(args[0])
+        except ValueError:
+            print(f"Invalid port: {args[0]}", file=sys.stderr)
+            sys.exit(1)
+    try:
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/api/volumes", timeout=2)
+        print(f"running on port {port}")
+    except Exception:
+        print("not running")
+        sys.exit(1)
 
 
 def cmd_install_skill():
@@ -82,8 +141,12 @@ def main():
 
     cmd = args[0]
 
-    if cmd == "start":
+    if cmd == "open":
+        cmd_open(args[1:])
+    elif cmd == "start":
         cmd_start(args[1:])
+    elif cmd == "status":
+        cmd_status(args[1:])
     elif cmd == "install-skill":
         cmd_install_skill()
     elif cmd == "uninstall-skill":
