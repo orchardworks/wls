@@ -510,6 +510,67 @@ class TestBundleExts:
         assert "is_bundle" not in subdir
 
 
+# --- Finder color tags ---
+
+import ctypes
+import plistlib
+
+class TestFinderTags:
+    def _set_tag(self, path, tags):
+        """Write a Finder color tag list to the file via setxattr."""
+        libc = ctypes.CDLL("libc.dylib", use_errno=True)
+        libc.setxattr.argtypes = [
+            ctypes.c_char_p, ctypes.c_char_p, ctypes.c_void_p,
+            ctypes.c_size_t, ctypes.c_uint32, ctypes.c_int,
+        ]
+        libc.setxattr.restype = ctypes.c_int
+        data = plistlib.dumps(tags, fmt=plistlib.FMT_BINARY)
+        ret = libc.setxattr(
+            path.encode("utf-8"),
+            b"com.apple.metadata:_kMDItemUserTags",
+            data, len(data), 0, 0,
+        )
+        assert ret == 0, f"setxattr failed: errno={ctypes.get_errno()}"
+
+    def test_no_tags_returns_none(self, temp_dir):
+        path = os.path.join(temp_dir, "file.txt")
+        assert server.get_finder_tag_colors(path) is None
+
+    def test_single_color_tag(self, temp_dir):
+        path = os.path.join(temp_dir, "file.txt")
+        self._set_tag(path, ["Red\n6"])
+        assert server.get_finder_tag_colors(path) == [6]
+
+    def test_multiple_color_tags(self, temp_dir):
+        path = os.path.join(temp_dir, "file.txt")
+        self._set_tag(path, ["Red\n6", "Blue\n4", "Green\n2"])
+        assert server.get_finder_tag_colors(path) == [6, 4, 2]
+
+    def test_colorless_tag_skipped(self, temp_dir):
+        path = os.path.join(temp_dir, "file.txt")
+        self._set_tag(path, ["Important\n0", "Red\n6"])
+        assert server.get_finder_tag_colors(path) == [6]
+
+    def test_only_colorless_returns_none(self, temp_dir):
+        path = os.path.join(temp_dir, "file.txt")
+        self._set_tag(path, ["Important\n0"])
+        assert server.get_finder_tag_colors(path) is None
+
+    def test_listing_includes_tags(self, test_server, temp_dir):
+        path = os.path.join(temp_dir, "file.txt")
+        self._set_tag(path, ["Red\n6"])
+        url = f"{test_server}/api/ls?dir={urllib.parse.quote(temp_dir)}"
+        data = json.loads(urllib.request.urlopen(url).read())
+        entry = next(e for e in data["entries"] if e["name"] == "file.txt")
+        assert entry.get("tags") == [6]
+
+    def test_listing_omits_tags_when_absent(self, test_server, temp_dir):
+        url = f"{test_server}/api/ls?dir={urllib.parse.quote(temp_dir)}"
+        data = json.loads(urllib.request.urlopen(url).read())
+        entry = next(e for e in data["entries"] if e["name"] == "file.txt")
+        assert "tags" not in entry
+
+
 # --- Serve HTML ---
 
 class TestServeHtml:

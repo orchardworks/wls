@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Finder-like file browser server for cmux browser panes."""
 
+import ctypes
+import ctypes.util
 import hashlib
 import json
 import mimetypes
 import os
+import plistlib
 import subprocess
 import sys
 import tempfile
@@ -85,6 +88,63 @@ BUNDLE_EXTS = {
     ".xcodeproj", ".xcworkspace", ".playground",
     ".prefPane", ".screensaver", ".pkg", ".mpkg", ".rtfd",
 }
+
+# --- Finder color tags via extended attributes ---
+# Each tag stored under com.apple.metadata:_kMDItemUserTags is a string of
+# the form "Name\nColorIndex" where ColorIndex is 0-7 (0 means no color).
+_FINDER_TAG_XATTR = b"com.apple.metadata:_kMDItemUserTags"
+try:
+    _libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.dylib", use_errno=True)
+    _libc.getxattr.argtypes = [
+        ctypes.c_char_p, ctypes.c_char_p, ctypes.c_void_p,
+        ctypes.c_size_t, ctypes.c_uint32, ctypes.c_int,
+    ]
+    _libc.getxattr.restype = ctypes.c_ssize_t
+except (OSError, AttributeError):
+    _libc = None
+
+def _read_xattr(path, name):
+    """Read an extended attribute as raw bytes, or None if missing."""
+    if _libc is None:
+        return None
+    try:
+        path_b = path.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
+    size = _libc.getxattr(path_b, name, None, 0, 0, 0)
+    if size <= 0:
+        return None
+    buf = ctypes.create_string_buffer(size)
+    res = _libc.getxattr(path_b, name, buf, size, 0, 0)
+    if res < 0:
+        return None
+    return buf.raw[:res]
+
+def get_finder_tag_colors(path):
+    """Return Finder color indices (1-7) for a path. Skips colorless tags (index 0)."""
+    data = _read_xattr(path, _FINDER_TAG_XATTR)
+    if not data:
+        return None
+    try:
+        tags = plistlib.loads(data)
+    except Exception:
+        return None
+    if not isinstance(tags, list):
+        return None
+    colors = []
+    for tag in tags:
+        if not isinstance(tag, str):
+            continue
+        # Format: "Name\nColorIndex". Plain "Name" with no newline = color 0.
+        idx = 0
+        if "\n" in tag:
+            try:
+                idx = int(tag.rsplit("\n", 1)[1])
+            except ValueError:
+                idx = 0
+        if 1 <= idx <= 7 and idx not in colors:
+            colors.append(idx)
+    return colors or None
 
 _compile_lock = threading.Lock()
 
@@ -342,6 +402,9 @@ class FinderHandler(SimpleHTTPRequestHandler):
                         entry["is_bundle"] = True
                     if os.path.islink(full):
                         entry["is_symlink"] = True
+                    tag_colors = get_finder_tag_colors(full)
+                    if tag_colors:
+                        entry["tags"] = tag_colors
                     entries.append(entry)
                 except (PermissionError, OSError):
                     continue

@@ -74,6 +74,17 @@
   .breadcrumb span:hover { background: var(--hover); }
   .breadcrumb .sep { color: var(--text-dim); cursor: default; font-size: 11px; }
   .breadcrumb .sep:hover { background: none; }
+  .breadcrumb.editing { padding: 0; }
+  .breadcrumb-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font: inherit;
+    padding: 3px 8px;
+    min-width: 0;
+  }
   .search-box {
     width: 160px;
     padding: 4px 8px;
@@ -269,6 +280,12 @@
     cursor: pointer;
     align-items: center;
     border-radius: 0;
+    /* Skip layout/paint for off-screen rows. Lets directories with
+       thousands of entries (e.g. node_modules) render and scroll
+       without freezing the UI. The intrinsic size hint reserves
+       roughly one row's worth of space so the scrollbar stays stable. */
+    content-visibility: auto;
+    contain-intrinsic-size: 0 22px;
   }
   .file-row:hover { background: var(--hover); }
   .file-row.selected { background: var(--selected); }
@@ -291,6 +308,8 @@
   }
   .file-icon { font-size: 16px; flex-shrink: 0; }
   .symlink-badge { font-size: 10px; color: var(--text-dim); margin-left: 2px; flex-shrink: 0; }
+  .tag-dots { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; flex-shrink: 0; }
+  .tag-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,0.2); }
   .tree-toggle {
     width: 16px;
     height: 16px;
@@ -488,6 +507,8 @@
     padding: 4px 10px;
     cursor: pointer;
     font-size: 13px;
+    content-visibility: auto;
+    contain-intrinsic-size: 0 24px;
   }
   .miller-item:hover { background: var(--hover); }
   .miller-item.selected { background: var(--selected); }
@@ -901,46 +922,46 @@
 </head>
 <body>
 
-<div class="toolbar">
-  <button id="btn-back" title="Back">←</button>
-  <button id="btn-forward" title="Forward">→</button>
-  <button id="btn-up" title="Parent directory">↑</button>
-  <div class="breadcrumb" id="breadcrumb"></div>
-  <button class="toggle-btn" id="btn-view-list" title="List view">☰</button>
-  <button class="toggle-btn" id="btn-view-cols" title="Column view">▥</button>
-  <button class="toggle-btn" id="btn-view-gallery" title="Gallery view">▦</button>
-  <button class="toggle-btn" id="btn-hidden" title="Show hidden files">.*</button>
-  <input type="text" class="search-box" id="search" placeholder="Filter…">
+<div class="toolbar" role="toolbar" aria-label="Navigation toolbar">
+  <button id="btn-back" title="Back" aria-label="Back">←</button>
+  <button id="btn-forward" title="Forward" aria-label="Forward">→</button>
+  <button id="btn-up" title="Parent directory" aria-label="Parent directory">↑</button>
+  <div class="breadcrumb" id="breadcrumb" aria-label="Current path. Click to type a path."></div>
+  <button class="toggle-btn" id="btn-view-list" title="List view" aria-label="List view" aria-pressed="false">☰</button>
+  <button class="toggle-btn" id="btn-view-cols" title="Column view" aria-label="Column view" aria-pressed="false">▥</button>
+  <button class="toggle-btn" id="btn-view-gallery" title="Gallery view" aria-label="Gallery view" aria-pressed="false">▦</button>
+  <button class="toggle-btn" id="btn-hidden" title="Show hidden files" aria-label="Toggle hidden files" aria-pressed="false">.*</button>
+  <input type="text" class="search-box" id="search" placeholder="Filter…" aria-label="Filter files">
 </div>
 
 <div class="main">
   <nav class="sidebar" id="sidebar" role="navigation" aria-label="Sidebar"><div class="sidebar-resize-handle" id="sidebar-resize"></div></nav>
   <div class="content-area">
     <div class="file-area-wrapper">
-      <div class="file-area" id="list-view" role="grid" aria-label="File list">
+      <div class="file-area" id="list-view" role="grid" aria-label="File list" aria-multiselectable="true">
         <div class="col-header" role="row">
-          <span data-sort="name" role="columnheader">Name</span>
-          <span data-sort="size" role="columnheader">Size</span>
-          <span data-sort="modified" role="columnheader">Modified</span>
+          <span data-sort="name" role="columnheader" aria-sort="none">Name</span>
+          <span data-sort="size" role="columnheader" aria-sort="none">Size</span>
+          <span data-sort="modified" role="columnheader" aria-sort="none">Modified</span>
         </div>
         <div class="file-list" id="file-list" role="rowgroup"></div>
       </div>
-      <div class="column-view hidden" id="column-view" role="tree" aria-label="Column view"></div>
-      <div class="gallery-view hidden" id="gallery-view" role="grid" aria-label="Gallery view"></div>
+      <div class="column-view hidden" id="column-view" role="tree" aria-label="Column view" aria-multiselectable="true"></div>
+      <div class="gallery-view hidden" id="gallery-view" role="grid" aria-label="Gallery view" aria-multiselectable="true"></div>
       <div class="preview-pane hidden" id="preview-pane">
         <div class="preview-resize-handle" id="preview-resize"></div>
       </div>
     </div>
     <div class="tray-resize-handle" id="tray-resize"></div>
-    <div class="tray-panel" id="tray-panel">
+    <aside class="tray-panel" id="tray-panel" role="region" aria-label="Tray">
       <div class="tray-header">
         <span id="tray-title">Tray</span>
         <button id="tray-clear" class="hidden">Clear</button>
       </div>
-      <div class="tray-items" id="tray-items">
+      <div class="tray-items" id="tray-items" role="listbox" aria-label="Tray items" aria-multiselectable="true">
         <div class="tray-empty">Stage files here from any folder, then drag them to move or copy across directories.<br>Press <kbd>T</kbd> to add selected files to Tray.</div>
       </div>
-    </div>
+    </aside>
   </div>
 </div>
 
@@ -1058,6 +1079,27 @@ function displayName(entry) {
     return entry.name.slice(0, -entry.ext.length);
   }
   return entry.name;
+}
+
+// macOS Finder color tag palette, indexed 1-7 (0 = no color, omitted by server).
+const FINDER_TAG_COLORS = {
+  1: { name: "Gray",   css: "#A6A6A6" },
+  2: { name: "Green",  css: "#6FCB6E" },
+  3: { name: "Purple", css: "#BF87DA" },
+  4: { name: "Blue",   css: "#5DADE2" },
+  5: { name: "Yellow", css: "#F6CD41" },
+  6: { name: "Red",    css: "#ED6F5F" },
+  7: { name: "Orange", css: "#F0A04C" },
+};
+
+function renderTagDots(entry) {
+  if (!entry.tags || entry.tags.length === 0) return "";
+  const dots = entry.tags.map(idx => {
+    const c = FINDER_TAG_COLORS[idx];
+    if (!c) return "";
+    return `<span class="tag-dot" style="background:${c.css}" title="${c.name}"></span>`;
+  }).join("");
+  return `<span class="tag-dots">${dots}</span>`;
 }
 
 function getIcon(entry) {
@@ -1194,33 +1236,51 @@ function renderSidebar() {
       } catch (err) { showToast("Error: " + err.message, "error"); }
     };
   }
+  const favList = document.createElement("ul");
+  favList.setAttribute("role", "listbox");
+  favList.setAttribute("aria-label", "Favorites");
+  favList.style.cssText = "list-style:none;margin:0;padding:0";
   for (const fav of favorites) {
-    const el = document.createElement("div");
-    el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === fav.path.replace(/\/$/, "") ? " current" : "");
+    const el = document.createElement("li");
+    const isCurrent = currentDir.replace(/\/$/, "") === fav.path.replace(/\/$/, "");
+    el.className = "sidebar-item" + (isCurrent ? " current" : "");
     el.dataset.path = fav.path;
+    el.setAttribute("role", "option");
+    el.setAttribute("aria-selected", isCurrent ? "true" : "false");
+    el.setAttribute("aria-label", fav.name);
     el.innerHTML = `<span class="sidebar-icon">${fav.icon}</span>${escHtml(fav.name)}`;
     el.onclick = () => navigate(fav.path);
     makeSidebarDropTarget(el, fav.path);
     makeSidebarContextMenu(el, fav.path);
-    sb.appendChild(el);
+    favList.appendChild(el);
   }
+  sb.appendChild(favList);
   // Volumes (Locations)
   if (volumes.length > 0) {
     const section = document.createElement("div");
     section.className = "sidebar-section";
     section.textContent = "Locations";
     sb.appendChild(section);
+    const volList = document.createElement("ul");
+    volList.setAttribute("role", "listbox");
+    volList.setAttribute("aria-label", "Locations");
+    volList.style.cssText = "list-style:none;margin:0;padding:0";
     for (const vol of volumes) {
-      const el = document.createElement("div");
-      el.className = "sidebar-item" + (currentDir.replace(/\/$/, "") === vol.path.replace(/\/$/, "") ? " current" : "");
+      const el = document.createElement("li");
+      const isCurrent = currentDir.replace(/\/$/, "") === vol.path.replace(/\/$/, "");
+      el.className = "sidebar-item" + (isCurrent ? " current" : "");
       el.dataset.path = vol.path;
+      el.setAttribute("role", "option");
+      el.setAttribute("aria-selected", isCurrent ? "true" : "false");
+      el.setAttribute("aria-label", vol.name);
       const volIcon = vol.name === "Macintosh HD" ? "\uF8FF" : "🗄️";
       el.innerHTML = `<span class="sidebar-icon">${volIcon}</span>${escHtml(vol.name)}`;
       el.onclick = () => navigate(vol.path);
       makeSidebarDropTarget(el, vol.path);
       makeSidebarContextMenu(el, vol.path);
-      sb.appendChild(el);
+      volList.appendChild(el);
     }
+    sb.appendChild(volList);
   }
   // Sidebar preview (fallback when right preview pane is hidden)
   const sbPreview = document.createElement("div");
@@ -1239,18 +1299,23 @@ function updateSidebarCurrent() {
   const norm = currentDir.replace(/\/$/, "");
   document.querySelectorAll(".sidebar-item").forEach(el => {
     const path = el.dataset.path;
-    if (path) el.classList.toggle("current", path.replace(/\/$/, "") === norm);
+    if (path) {
+      const isCurrent = path.replace(/\/$/, "") === norm;
+      el.classList.toggle("current", isCurrent);
+      el.setAttribute("aria-selected", isCurrent ? "true" : "false");
+    }
   });
 }
 
 function renderBreadcrumb() {
   const bc = $("#breadcrumb");
+  bc.classList.remove("editing");
   const parts = currentDir.split("/").filter(Boolean);
   bc.innerHTML = "";
   // Root
   const root = document.createElement("span");
   root.textContent = "/";
-  root.onclick = () => navigate("/");
+  root.onclick = (e) => { e.stopPropagation(); navigate("/"); };
   bc.appendChild(root);
 
   let path = "";
@@ -1264,10 +1329,53 @@ function renderBreadcrumb() {
     const crumb = document.createElement("span");
     crumb.textContent = parts[i];
     const p = path;
-    crumb.onclick = () => navigate(p);
+    crumb.onclick = (e) => { e.stopPropagation(); navigate(p); };
     bc.appendChild(crumb);
   }
   bc.scrollLeft = bc.scrollWidth;
+  // Click on empty breadcrumb area (not on a crumb) enters edit mode.
+  bc.onclick = (e) => { if (e.target === bc) startEditPath(); };
+}
+
+function startEditPath() {
+  const bc = $("#breadcrumb");
+  if (bc.classList.contains("editing")) return;
+  bc.classList.add("editing");
+  bc.innerHTML = "";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "breadcrumb-input";
+  input.value = currentDir;
+  input.spellcheck = false;
+  input.setAttribute("autocomplete", "off");
+  input.setAttribute("autocorrect", "off");
+  input.setAttribute("autocapitalize", "off");
+  input.placeholder = "Type a path and press Enter";
+  bc.appendChild(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const cancel = () => {
+    if (committed) return;
+    committed = true;
+    renderBreadcrumb();
+  };
+  input.onblur = cancel;
+  input.onkeydown = (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const target = input.value.trim();
+      if (!target) { cancel(); return; }
+      // Server-side expanduser handles leading ~ and ~/... paths.
+      committed = true;
+      navigate(target);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  };
 }
 
 
@@ -1628,19 +1736,24 @@ function renderFiles(preserveScroll = false) {
 
   for (const { entry, depth } of flatRows) {
     const row = document.createElement("div");
-    row.className = "file-row" + (entry.hidden ? " hidden-file" : "") + (selectedPaths.has(entry.path) ? " selected" : "");
+    const isSelected = selectedPaths.has(entry.path);
+    row.className = "file-row" + (entry.hidden ? " hidden-file" : "") + (isSelected ? " selected" : "");
     row.dataset.path = entry.path;
+    row.setAttribute("role", "row");
+    row.setAttribute("aria-selected", isSelected ? "true" : "false");
+    row.setAttribute("aria-label", entry.name);
+    if (entry.is_dir) row.setAttribute("aria-expanded", expandedDirs.has(entry.path) ? "true" : "false");
     const indent = depth * 20;
     const isExpanded = expandedDirs.has(entry.path);
     const toggleCls = entry.is_dir ? ("tree-toggle" + (isExpanded ? " expanded" : "")) : "tree-toggle placeholder";
     row.innerHTML = `
-      <div class="file-name" style="padding-left: ${indent}px">
+      <div class="file-name" role="gridcell" style="padding-left: ${indent}px">
         <span class="${toggleCls}">▶</span>
         <span class="file-icon">${getIcon(entry)}</span>
-        <span>${escHtml(displayName(entry))}</span>${entry.is_symlink ? '<span class="symlink-badge" title="Symlink">↗</span>' : ""}
+        <span>${escHtml(displayName(entry))}</span>${entry.is_symlink ? '<span class="symlink-badge" title="Symlink">↗</span>' : ""}${renderTagDots(entry)}
       </div>
-      <div class="file-size">${entry.is_dir ? "—" : formatSize(entry.size)}</div>
-      <div class="file-date">${formatDate(entry.modified)}</div>
+      <div class="file-size" role="gridcell">${entry.is_dir ? "—" : formatSize(entry.size)}</div>
+      <div class="file-date" role="gridcell">${formatDate(entry.modified)}</div>
     `;
     row.querySelector(".tree-toggle").onclick = (e) => {
       if (!entry.is_dir) return;
@@ -1783,14 +1896,21 @@ async function renderColumnView(preserveScroll = false) {
     const col = columnData[ci];
     const colEl = document.createElement("div");
     colEl.className = "miller-column";
+    colEl.setAttribute("role", "group");
+    colEl.setAttribute("aria-label", `Column ${ci + 1}: ${col.dir}`);
     const filtered = sortEntries(filterEntries(col.entries));
 
     for (const entry of filtered) {
       const item = document.createElement("div");
-      item.className = "miller-item" + (selectedPaths.has(entry.path) ? " selected" : "");
+      const isSelected = selectedPaths.has(entry.path);
+      item.className = "miller-item" + (isSelected ? " selected" : "");
+      item.setAttribute("role", "treeitem");
+      item.setAttribute("aria-selected", isSelected ? "true" : "false");
+      item.setAttribute("aria-label", entry.name);
+      if (entry.is_dir) item.setAttribute("aria-expanded", ci + 1 < columnData.length && col.selected === entry.path ? "true" : "false");
       item.innerHTML = `
         <span class="file-icon">${getIcon(entry)}</span>
-        <span class="miller-item-name">${escHtml(displayName(entry))}</span>${entry.is_symlink ? '<span class="symlink-badge" title="Symlink">↗</span>' : ""}
+        <span class="miller-item-name">${escHtml(displayName(entry))}</span>${entry.is_symlink ? '<span class="symlink-badge" title="Symlink">↗</span>' : ""}${renderTagDots(entry)}
         ${entry.is_dir ? '<span class="miller-item-arrow">▶</span>' : ""}
       `;
       item.onclick = async (e) => {
@@ -2051,6 +2171,9 @@ function switchView(mode) {
   $("#btn-view-list").classList.toggle("active", mode === "list");
   $("#btn-view-cols").classList.toggle("active", mode === "columns");
   $("#btn-view-gallery").classList.toggle("active", mode === "gallery");
+  $("#btn-view-list").setAttribute("aria-pressed", mode === "list" ? "true" : "false");
+  $("#btn-view-cols").setAttribute("aria-pressed", mode === "columns" ? "true" : "false");
+  $("#btn-view-gallery").setAttribute("aria-pressed", mode === "gallery" ? "true" : "false");
   $("#list-view").classList.toggle("hidden", mode !== "list");
   $("#column-view").classList.toggle("hidden", mode !== "columns");
   $("#gallery-view").classList.toggle("hidden", mode !== "gallery");
@@ -2161,15 +2284,19 @@ function renderCurrentView(preserveScroll = false) {
 $("#btn-hidden").onclick = () => {
   showHidden = !showHidden;
   $("#btn-hidden").classList.toggle("active", showHidden);
+  $("#btn-hidden").setAttribute("aria-pressed", showHidden ? "true" : "false");
   renderCurrentView();
 };
 
 function updateSortIndicators() {
   $$(".col-header span").forEach(el => {
-    el.classList.toggle("sort-active", el.dataset.sort === sortKey);
+    if (!el.dataset.sort) return;
+    const isActive = el.dataset.sort === sortKey;
+    el.classList.toggle("sort-active", isActive);
+    el.setAttribute("aria-sort", isActive ? (sortAsc ? "ascending" : "descending") : "none");
     const existing = el.querySelector(".sort-arrow");
     if (existing) existing.remove();
-    if (el.dataset.sort === sortKey) {
+    if (isActive) {
       const arrow = document.createElement("span");
       arrow.className = "sort-arrow";
       arrow.textContent = sortAsc ? "▲" : "▼";
@@ -2357,6 +2484,7 @@ function toggleCheatSheet() {
       <tr><td><kbd>O</kbd> <kbd>Enter</kbd></td><td>Open</td></tr>
       <tr><td><kbd>U</kbd></td><td>Parent directory</td></tr>
       <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Cycle focus (Main → Tray → Sidebar)</td></tr>
+      <tr><td><kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>G</kbd></td><td>Go to folder (type a path)</td></tr>
       <tr><td><kbd>/</kbd></td><td>Search filter</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Clear search</td></tr>
       <tr><td colspan="2" style="padding:12px 0 3px;color:var(--text-dim);font-weight:600">Actions</td></tr>
@@ -2622,7 +2750,14 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "/") { e.preventDefault(); $("#search").focus(); return; }
 
   // . — toggle hidden files
-  if (e.key === ".") { e.preventDefault(); showHidden = !showHidden; $("#btn-hidden").classList.toggle("active", showHidden); renderCurrentView(); return; }
+  if (e.key === ".") { e.preventDefault(); showHidden = !showHidden; $("#btn-hidden").classList.toggle("active", showHidden); $("#btn-hidden").setAttribute("aria-pressed", showHidden ? "true" : "false"); renderCurrentView(); return; }
+
+  // Cmd+Shift+G — Go to folder (edit path bar)
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "g" || e.key === "G")) {
+    e.preventDefault();
+    startEditPath();
+    return;
+  }
 
   // Cmd+C — copy path
   if ((e.metaKey || e.ctrlKey) && e.key === "c") {
@@ -3067,8 +3202,12 @@ function renderTray() {
 
   for (const item of trayItems) {
     const el = document.createElement("div");
-    el.className = "tray-item" + (traySelectedPaths.has(item.path) ? " selected" : "");
+    const isSelected = traySelectedPaths.has(item.path);
+    el.className = "tray-item" + (isSelected ? " selected" : "");
     el.dataset.path = item.path;
+    el.setAttribute("role", "option");
+    el.setAttribute("aria-selected", isSelected ? "true" : "false");
+    el.setAttribute("aria-label", item.name);
     const icon = item.type === "dir" ? "📁" : getIcon({is_dir: false, ext: "." + item.name.split(".").pop()});
     const dir = item.path.substring(0, item.path.length - item.name.length - 1) || "/";
     el.innerHTML = `<span>${icon}</span><span>${item.name}</span><span class="tray-path" title="${item.path}">${dir}</span>`;
@@ -3317,6 +3456,9 @@ renderTray();
 $("#btn-view-list").classList.toggle("active", viewMode === "list");
 $("#btn-view-cols").classList.toggle("active", viewMode === "columns");
 $("#btn-view-gallery").classList.toggle("active", viewMode === "gallery");
+$("#btn-view-list").setAttribute("aria-pressed", viewMode === "list" ? "true" : "false");
+$("#btn-view-cols").setAttribute("aria-pressed", viewMode === "columns" ? "true" : "false");
+$("#btn-view-gallery").setAttribute("aria-pressed", viewMode === "gallery" ? "true" : "false");
 $("#list-view").classList.toggle("hidden", viewMode !== "list");
 $("#column-view").classList.toggle("hidden", viewMode !== "columns");
 $("#gallery-view").classList.toggle("hidden", viewMode !== "gallery");
