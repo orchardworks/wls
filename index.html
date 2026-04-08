@@ -493,6 +493,8 @@
   .miller-item.selected { background: var(--selected); }
   body[data-focus="tray"] .miller-item.selected,
   body[data-focus="sidebar"] .miller-item.selected { background: var(--hover); }
+  .miller-item.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(0,120,212,0.15); }
+  .miller-column.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(0,120,212,0.08); }
   .miller-item .file-icon { font-size: 14px; flex-shrink: 0; }
   .miller-item-name {
     flex: 1;
@@ -1725,17 +1727,49 @@ async function renderColumnView(preserveScroll = false) {
 
     for (const entry of filtered) {
       const item = document.createElement("div");
-      item.className = "miller-item" + (col.selected === entry.path ? " selected" : "");
+      item.className = "miller-item" + (selectedPaths.has(entry.path) ? " selected" : "");
       item.innerHTML = `
         <span class="file-icon">${getIcon(entry)}</span>
         <span class="miller-item-name">${escHtml(displayName(entry))}</span>${entry.is_symlink ? '<span class="symlink-badge" title="Symlink">↗</span>' : ""}
         ${entry.is_dir ? '<span class="miller-item-arrow">▶</span>' : ""}
       `;
-      item.onclick = async () => {
+      item.onclick = async (e) => {
         setFocusArea("main");
-        col.selected = entry.path;
+        // Switching columns resets multi-selection
+        if (activeColumnIndex !== ci) {
+          selectedPaths.clear();
+          lastClickedPath = null;
+        }
         activeColumnIndex = ci;
-        // Remove columns after this one
+        col.selected = entry.path;
+
+        if (e.metaKey || e.ctrlKey) {
+          // Cmd/Ctrl+click: toggle individual — drop any deeper columns
+          columnData = columnData.slice(0, ci + 1);
+          if (selectedPaths.has(entry.path)) selectedPaths.delete(entry.path);
+          else selectedPaths.add(entry.path);
+          lastClickedPath = entry.path;
+          renderColumnView(true);
+          renderPreview(entry);
+          return;
+        }
+
+        if (e.shiftKey && lastClickedPath) {
+          // Shift+click: range select within current column
+          columnData = columnData.slice(0, ci + 1);
+          const paths = filtered.map(r => r.path);
+          const from = paths.indexOf(lastClickedPath);
+          const to = paths.indexOf(entry.path);
+          if (from !== -1 && to !== -1) {
+            const [start, end] = from < to ? [from, to] : [to, from];
+            for (let i = start; i <= end; i++) selectedPaths.add(paths[i]);
+          }
+          renderColumnView(true);
+          renderPreview(entry);
+          return;
+        }
+
+        // Normal click: single select + open sub-column for directories
         columnData = columnData.slice(0, ci + 1);
         if (entry.is_dir) {
           try {
@@ -1746,6 +1780,7 @@ async function renderColumnView(preserveScroll = false) {
         }
         selectedPaths.clear();
         selectedPaths.add(entry.path);
+        lastClickedPath = entry.path;
         renderColumnView(true);
         renderPreview(entry);
         // If a new column was added (dir click), scroll right to show it
@@ -1798,6 +1833,37 @@ async function renderColumnView(preserveScroll = false) {
       }
       colEl.appendChild(item);
     }
+    // Column background drop zone — target is the column's directory.
+    // The per-item handlers take precedence when dragging over an item.
+    colEl.ondragover = (e) => {
+      if (e.target.closest(".miller-item")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      colEl.classList.add("drop-target");
+    };
+    colEl.ondragleave = (e) => {
+      if (!colEl.contains(e.relatedTarget)) colEl.classList.remove("drop-target");
+    };
+    colEl.ondrop = async (e) => {
+      if (e.target.closest(".miller-item")) return;
+      e.preventDefault();
+      colEl.classList.remove("drop-target");
+      const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
+      if (paths.length === 0) return;
+      const fromTray = e.dataTransfer.getData("text/x-finder-pane-source") === "tray";
+      if (fromTray) {
+        await showTrayDropDialog(paths, col.dir);
+        return;
+      }
+      try {
+        const res = await fetch("/api/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paths, dest: col.dir }),
+        });
+        if (await handleMoveOrCopyResponse(res, "Move")) navigate(currentDir, false);
+      } catch (err) { showToast("Error: " + err.message, "error"); }
+    };
     container.appendChild(colEl);
     // Restore saved scroll position for this column
     if (preserveScroll && savedScrollTops[ci] !== undefined) colEl.scrollTop = savedScrollTops[ci];
