@@ -33,7 +33,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install pytest playwright
+        run: pip install pytest pytest-playwright
 
       - name: Install browsers
         run: python -m playwright install chromium
