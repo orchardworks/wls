@@ -74,6 +74,17 @@
   .breadcrumb span:hover { background: var(--hover); }
   .breadcrumb .sep { color: var(--text-dim); cursor: default; font-size: 11px; }
   .breadcrumb .sep:hover { background: none; }
+  .breadcrumb.editing { padding: 0; }
+  .breadcrumb-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font: inherit;
+    padding: 3px 8px;
+    min-width: 0;
+  }
   .search-box {
     width: 160px;
     padding: 4px 8px;
@@ -1185,12 +1196,13 @@ function updateSidebarCurrent() {
 
 function renderBreadcrumb() {
   const bc = $("#breadcrumb");
+  bc.classList.remove("editing");
   const parts = currentDir.split("/").filter(Boolean);
   bc.innerHTML = "";
   // Root
   const root = document.createElement("span");
   root.textContent = "/";
-  root.onclick = () => navigate("/");
+  root.onclick = (e) => { e.stopPropagation(); navigate("/"); };
   bc.appendChild(root);
 
   let path = "";
@@ -1204,10 +1216,53 @@ function renderBreadcrumb() {
     const crumb = document.createElement("span");
     crumb.textContent = parts[i];
     const p = path;
-    crumb.onclick = () => navigate(p);
+    crumb.onclick = (e) => { e.stopPropagation(); navigate(p); };
     bc.appendChild(crumb);
   }
   bc.scrollLeft = bc.scrollWidth;
+  // Click on empty breadcrumb area (not on a crumb) enters edit mode.
+  bc.onclick = (e) => { if (e.target === bc) startEditPath(); };
+}
+
+function startEditPath() {
+  const bc = $("#breadcrumb");
+  if (bc.classList.contains("editing")) return;
+  bc.classList.add("editing");
+  bc.innerHTML = "";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "breadcrumb-input";
+  input.value = currentDir;
+  input.spellcheck = false;
+  input.setAttribute("autocomplete", "off");
+  input.setAttribute("autocorrect", "off");
+  input.setAttribute("autocapitalize", "off");
+  input.placeholder = "Type a path and press Enter";
+  bc.appendChild(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const cancel = () => {
+    if (committed) return;
+    committed = true;
+    renderBreadcrumb();
+  };
+  input.onblur = cancel;
+  input.onkeydown = (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const target = input.value.trim();
+      if (!target) { cancel(); return; }
+      // Server-side expanduser handles leading ~ and ~/... paths.
+      committed = true;
+      navigate(target);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  };
 }
 
 
@@ -2176,6 +2231,7 @@ function toggleCheatSheet() {
       <tr><td><kbd>O</kbd> <kbd>Enter</kbd></td><td>Open</td></tr>
       <tr><td><kbd>U</kbd></td><td>Parent directory</td></tr>
       <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Cycle focus (Main → Tray → Sidebar)</td></tr>
+      <tr><td><kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>G</kbd></td><td>Go to folder (type a path)</td></tr>
       <tr><td><kbd>/</kbd></td><td>Search filter</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Clear search</td></tr>
       <tr><td colspan="2" style="padding:12px 0 3px;color:var(--text-dim);font-weight:600">Actions</td></tr>
@@ -2442,6 +2498,13 @@ document.addEventListener("keydown", (e) => {
 
   // . — toggle hidden files
   if (e.key === ".") { e.preventDefault(); showHidden = !showHidden; $("#btn-hidden").classList.toggle("active", showHidden); renderCurrentView(); return; }
+
+  // Cmd+Shift+G — Go to folder (edit path bar)
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "g" || e.key === "G")) {
+    e.preventDefault();
+    startEditPath();
+    return;
+  }
 
   // Cmd+C — copy path
   if ((e.metaKey || e.ctrlKey) && e.key === "c") {
