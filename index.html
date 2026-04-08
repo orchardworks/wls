@@ -280,6 +280,12 @@
     cursor: pointer;
     align-items: center;
     border-radius: 0;
+    /* Skip layout/paint for off-screen rows. Lets directories with
+       thousands of entries (e.g. node_modules) render and scroll
+       without freezing the UI. The intrinsic size hint reserves
+       roughly one row's worth of space so the scrollbar stays stable. */
+    content-visibility: auto;
+    contain-intrinsic-size: 0 22px;
   }
   .file-row:hover { background: var(--hover); }
   .file-row.selected { background: var(--selected); }
@@ -501,6 +507,8 @@
     padding: 4px 10px;
     cursor: pointer;
     font-size: 13px;
+    content-visibility: auto;
+    contain-intrinsic-size: 0 24px;
   }
   .miller-item:hover { background: var(--hover); }
   .miller-item.selected { background: var(--selected); }
