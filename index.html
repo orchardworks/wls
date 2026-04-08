@@ -529,6 +529,63 @@
     flex-shrink: 0;
   }
 
+  /* Gallery view */
+  .gallery-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 14px;
+    align-content: start;
+  }
+  .gallery-view.hidden { display: none; }
+  .gallery-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    overflow: hidden;
+  }
+  .gallery-item:hover { background: var(--hover); }
+  .gallery-item.selected { background: var(--selected); }
+  body[data-focus="tray"] .gallery-item.selected,
+  body[data-focus="sidebar"] .gallery-item.selected { background: var(--hover); }
+  .gallery-item.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(0,120,212,0.15); }
+  .gallery-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px;
+    overflow: hidden;
+    font-size: 48px;
+  }
+  .gallery-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .gallery-name {
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+  }
+  .gallery-item.hidden-file { opacity: 0.5; }
+
   /* Context menu */
   .context-menu {
     position: fixed;
@@ -872,6 +929,7 @@
   <div class="breadcrumb" id="breadcrumb" aria-label="Current path. Click to type a path."></div>
   <button class="toggle-btn" id="btn-view-list" title="List view" aria-label="List view" aria-pressed="false">☰</button>
   <button class="toggle-btn" id="btn-view-cols" title="Column view" aria-label="Column view" aria-pressed="false">▥</button>
+  <button class="toggle-btn" id="btn-view-gallery" title="Gallery view" aria-label="Gallery view" aria-pressed="false">▦</button>
   <button class="toggle-btn" id="btn-hidden" title="Show hidden files" aria-label="Toggle hidden files" aria-pressed="false">.*</button>
   <input type="text" class="search-box" id="search" placeholder="Filter…" aria-label="Filter files">
 </div>
@@ -889,6 +947,7 @@
         <div class="file-list" id="file-list" role="rowgroup"></div>
       </div>
       <div class="column-view hidden" id="column-view" role="tree" aria-label="Column view" aria-multiselectable="true"></div>
+      <div class="gallery-view hidden" id="gallery-view" role="grid" aria-label="Gallery view" aria-multiselectable="true"></div>
       <div class="preview-pane hidden" id="preview-pane">
         <div class="preview-resize-handle" id="preview-resize"></div>
       </div>
@@ -940,7 +999,8 @@ let entries = [];
 let history = [];
 let historyIdx = -1;
 let showHidden = false;
-let viewMode = localStorage.getItem("finder-pane-view-mode") || "list"; // "list" or "columns"
+let viewMode = localStorage.getItem("finder-pane-view-mode") || "list"; // "list" | "columns" | "gallery"
+if (viewMode !== "list" && viewMode !== "columns" && viewMode !== "gallery") viewMode = "list";
 let sortKey = "name";
 let sortAsc = true;
 let filterText = "";
@@ -1994,20 +2054,136 @@ async function renderColumnView(preserveScroll = false) {
   lazyLoadAppIcons();
 }
 
+function renderGalleryView(preserveScroll = false) {
+  const container = $("#gallery-view");
+  const savedScroll = preserveScroll ? container.scrollTop : 0;
+  container.innerHTML = "";
+
+  const filtered = sortEntries(filterEntries(entries));
+  for (const entry of filtered) {
+    const item = document.createElement("div");
+    const isSelected = selectedPaths.has(entry.path);
+    item.className = "gallery-item" + (entry.hidden ? " hidden-file" : "") + (isSelected ? " selected" : "");
+    item.dataset.path = entry.path;
+    item.setAttribute("role", "gridcell");
+    item.setAttribute("aria-selected", isSelected ? "true" : "false");
+    item.setAttribute("aria-label", entry.name);
+
+    // Thumbnail: actual image preview for image files, icon otherwise
+    const thumb = document.createElement("div");
+    thumb.className = "gallery-thumb";
+    if (IMAGE_EXTS.has(entry.ext) && !entry.is_dir) {
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.alt = entry.name;
+      img.src = "/api/file?path=" + encodeURIComponent(entry.path);
+      img.onerror = () => { thumb.textContent = getIcon(entry); };
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = getIcon(entry);
+    }
+    item.appendChild(thumb);
+
+    const name = document.createElement("div");
+    name.className = "gallery-name";
+    name.textContent = displayName(entry);
+    item.appendChild(name);
+
+    item.onclick = (e) => {
+      setFocusArea("main");
+      traySelectedPaths.clear();
+      if (e.metaKey || e.ctrlKey) {
+        if (selectedPaths.has(entry.path)) selectedPaths.delete(entry.path);
+        else selectedPaths.add(entry.path);
+      } else if (e.shiftKey && lastClickedPath) {
+        const paths = filtered.map(en => en.path);
+        const from = paths.indexOf(lastClickedPath);
+        const to = paths.indexOf(entry.path);
+        if (from !== -1 && to !== -1) {
+          const [start, end] = from < to ? [from, to] : [to, from];
+          for (let i = start; i <= end; i++) selectedPaths.add(paths[i]);
+        }
+      } else {
+        selectedPaths.clear();
+        selectedPaths.add(entry.path);
+      }
+      lastClickedPath = entry.path;
+      renderGalleryView(true);
+      renderPreview(entry);
+    };
+    item.ondblclick = () => {
+      if (entry.is_dir) {
+        navigate(entry.path);
+      } else {
+        fetch("/api/open?path=" + encodeURIComponent(entry.path));
+      }
+    };
+    item.oncontextmenu = (e) => showContextMenu(e, entry);
+
+    // Drag & Drop (mirror list view)
+    item.draggable = true;
+    item.ondragstart = (e) => {
+      if (!selectedPaths.has(entry.path)) {
+        selectedPaths.clear();
+        selectedPaths.add(entry.path);
+        renderGalleryView();
+      }
+      e.dataTransfer.setData("application/json", JSON.stringify([...selectedPaths]));
+      e.dataTransfer.effectAllowed = "move";
+    };
+    item.ondragend = () => {
+      document.querySelectorAll(".dragging, .drop-target").forEach(r => r.classList.remove("dragging", "drop-target"));
+    };
+    if (entry.is_dir) {
+      item.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; item.classList.add("drop-target"); };
+      item.ondragleave = () => item.classList.remove("drop-target");
+      item.ondrop = async (e) => {
+        e.preventDefault();
+        item.classList.remove("drop-target");
+        const paths = JSON.parse(e.dataTransfer.getData("application/json") || "[]");
+        if (paths.length === 0 || paths.includes(entry.path)) return;
+        const fromTray = e.dataTransfer.getData("text/x-finder-pane-source") === "tray";
+        if (fromTray) {
+          await showTrayDropDialog(paths, entry.path);
+          return;
+        }
+        try {
+          const res = await fetch("/api/move", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paths, dest: entry.path }),
+          });
+          if (await handleMoveOrCopyResponse(res, "Move")) navigate(currentDir, false);
+        } catch (err) { showToast("Error: " + err.message, "error"); }
+      };
+    }
+
+    container.appendChild(item);
+  }
+
+  if (preserveScroll) container.scrollTop = savedScroll;
+  updateStatusbar();
+}
+
 function switchView(mode) {
   viewMode = mode;
   localStorage.setItem("finder-pane-view-mode", mode);
   $("#btn-view-list").classList.toggle("active", mode === "list");
   $("#btn-view-cols").classList.toggle("active", mode === "columns");
+  $("#btn-view-gallery").classList.toggle("active", mode === "gallery");
   $("#btn-view-list").setAttribute("aria-pressed", mode === "list" ? "true" : "false");
   $("#btn-view-cols").setAttribute("aria-pressed", mode === "columns" ? "true" : "false");
+  $("#btn-view-gallery").setAttribute("aria-pressed", mode === "gallery" ? "true" : "false");
   $("#list-view").classList.toggle("hidden", mode !== "list");
   $("#column-view").classList.toggle("hidden", mode !== "columns");
+  $("#gallery-view").classList.toggle("hidden", mode !== "gallery");
   if (mode === "list") {
     renderFiles();
-  } else {
+  } else if (mode === "columns") {
     columnData = [{ dir: currentDir, entries: entries, selected: null }]; activeColumnIndex = 0;
     renderColumnView();
+  } else {
+    renderGalleryView();
   }
 }
 
@@ -2060,6 +2236,8 @@ async function navigate(dir, pushHistory = true, selectPath = null) {
     if (viewMode === "columns") {
       columnData = [{ dir: currentDir, entries: entries, selected: selectPath || null }]; activeColumnIndex = 0;
       renderColumnView();
+    } else if (viewMode === "gallery") {
+      renderGalleryView();
     } else {
       renderFiles();
     }
@@ -2068,7 +2246,7 @@ async function navigate(dir, pushHistory = true, selectPath = null) {
       if (entry) renderPreview(entry);
       // Scroll into view
       requestAnimationFrame(() => {
-        const row = document.querySelector(`.file-row[data-path="${CSS.escape(selectPath)}"], .miller-item.selected`);
+        const row = document.querySelector(`.file-row[data-path="${CSS.escape(selectPath)}"], .miller-item.selected, .gallery-item[data-path="${CSS.escape(selectPath)}"]`);
         if (row) row.scrollIntoView({ block: "nearest" });
       });
     } else {
@@ -2095,9 +2273,11 @@ $("#btn-up").onclick = () => { if (parentDir && parentDir !== currentDir) naviga
 
 $("#btn-view-list").onclick = () => switchView("list");
 $("#btn-view-cols").onclick = () => switchView("columns");
+$("#btn-view-gallery").onclick = () => switchView("gallery");
 
 function renderCurrentView(preserveScroll = false) {
   if (viewMode === "columns") renderColumnView(preserveScroll);
+  else if (viewMode === "gallery") renderGalleryView(preserveScroll);
   else renderFiles(preserveScroll);
 }
 
@@ -2191,6 +2371,8 @@ function moveSelection(delta) {
       if (viewMode === "columns") {
         const columns = document.querySelectorAll(".miller-column");
         row = columns[activeColumnIndex]?.querySelector(".miller-item.selected");
+      } else if (viewMode === "gallery") {
+        row = document.querySelector(`.gallery-item[data-path="${CSS.escape(items[idx].path)}"]`);
       } else {
         row = document.querySelector(`.file-row[data-path="${CSS.escape(items[idx].path)}"]`);
       }
@@ -3273,10 +3455,13 @@ renderTray();
 // Init
 $("#btn-view-list").classList.toggle("active", viewMode === "list");
 $("#btn-view-cols").classList.toggle("active", viewMode === "columns");
+$("#btn-view-gallery").classList.toggle("active", viewMode === "gallery");
 $("#btn-view-list").setAttribute("aria-pressed", viewMode === "list" ? "true" : "false");
 $("#btn-view-cols").setAttribute("aria-pressed", viewMode === "columns" ? "true" : "false");
+$("#btn-view-gallery").setAttribute("aria-pressed", viewMode === "gallery" ? "true" : "false");
 $("#list-view").classList.toggle("hidden", viewMode !== "list");
 $("#column-view").classList.toggle("hidden", viewMode !== "columns");
+$("#gallery-view").classList.toggle("hidden", viewMode !== "gallery");
 const initPath = decodeURI(window.location.pathname);
 updateStatusbar();
 navigate(initPath.length > 1 ? initPath : "~");
