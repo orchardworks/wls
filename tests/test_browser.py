@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -59,8 +61,24 @@ def test_server(temp_dir):
     srv = server.ThreadingHTTPServer(("127.0.0.1", port), server.FinderHandler)
     thread = threading.Thread(target=srv.serve_forever, daemon=True)
     thread.start()
-    time.sleep(0.5)
-    yield f"http://127.0.0.1:{port}"
+
+    # Wait for the server to actually accept requests. A fixed sleep is
+    # flaky on slow CI runners — the first few tests would time out while
+    # the server was still warming up. Poll /api/ping until it responds.
+    base_url = f"http://127.0.0.1:{port}"
+    deadline = time.monotonic() + 10.0
+    while True:
+        try:
+            with urllib.request.urlopen(f"{base_url}/api/ping", timeout=1) as resp:
+                if resp.status == 200:
+                    break
+        except (urllib.error.URLError, ConnectionError, OSError):
+            pass
+        if time.monotonic() > deadline:
+            raise RuntimeError("test_server did not become ready within 10s")
+        time.sleep(0.05)
+
+    yield base_url
     srv.shutdown()
 
 
